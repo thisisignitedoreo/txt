@@ -612,7 +612,7 @@ void update_buf(Buffer* buf, bool change_lines) {
         push_at_cursor(buf, '\n');
         buf->changed = true;
     } else if (key_pressed(KEY_DELETE)) {
-        if (buf->cursor < da_length(buf->content) && buf->content[buf->cursor] != '\n') {
+        if (buf->cursor < da_length(buf->content) && (change_lines ? buf->content[buf->cursor] != '\n' : true)) {
             char* temp = malloc(da_length(buf->content) - buf->cursor - 1);
             memcpy(temp, buf->content + buf->cursor + 1, da_length(buf->content) - buf->cursor - 1);
             memcpy(buf->content + buf->cursor, temp, da_length(buf->content) - buf->cursor - 1);
@@ -621,7 +621,7 @@ void update_buf(Buffer* buf, bool change_lines) {
             buf->changed = true;
         }
     } else if (key_pressed(KEY_BACKSPACE)) {
-        if (buf->cursor > 0 && buf->content[buf->cursor-1] != '\n') {
+        if (buf->cursor > 0 && (change_lines ? buf->content[buf->cursor-1] != '\n' : true)) {
             char* temp = malloc(da_length(buf->content) - buf->cursor);
             memcpy(temp, buf->content + buf->cursor, da_length(buf->content) - buf->cursor);
             memcpy(buf->content + buf->cursor - 1, temp, da_length(buf->content) - buf->cursor);
