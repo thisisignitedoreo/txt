@@ -1,7 +1,8 @@
 #!/bin/sh
 set -xe
 
-if [[ $1 == "windows" ]] then
+if [[ $1 == "windows" ]]
+then
 	COMPILER="x86_64-w64-mingw32-cc"
 	FLAGS="-mwindows -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib"
 	LIBS="-l:libraylib.a -lwinmm -lgdi32"
