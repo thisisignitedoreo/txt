@@ -809,7 +809,8 @@ int main(int argc, char** argv) {
         
     int pad = 8, pos = 0, posx = 0, lines_size = 80;
 
-	while (!WindowShouldClose()) {
+	SetTargetFPS(60);
+    while (!WindowShouldClose()) {
         size_t l, c;
         size_t lp, cp;
         Buffer cursorbuf = state == STATE_TEXT ? buf : state == STATE_OPEN ? open_buffer : state == STATE_SAVE ? save_buffer : help_buffer;
@@ -899,7 +900,6 @@ int main(int argc, char** argv) {
                     memcpy(str + cwdl + 1, save_buffer.content + line.start, line.end-line.start);
                     memcpy(str, cwd, cwdl);
                     str[cwdl] = '/';
-                    printf("%s\n", str);
                     
                     free((char*) buf.filename);
                     buf.filename = str;
