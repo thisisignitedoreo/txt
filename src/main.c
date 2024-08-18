@@ -410,7 +410,7 @@ void deinit_buf(Buffer* buf) {
     da_free(buf->content);
     da_free(buf->tokens);
     buf->changed = false;
-    if (buf->filename != 0) free((char*) buf->filename);
+    if (buf->filename != 0) free(buf->filename);
 }
 
 void print_sb(char* sb) {
@@ -507,8 +507,8 @@ void save_file(Buffer* buf) {
     size_t utf8l = strlen(utf8_string);
     fwrite(utf8_string, 1, utf8l, f);
     UnloadUTF8(utf8_string);
-    UnloadUTF8(ufilename);
     fclose(f);
+    UnloadUTF8(ufilename);
 }
 
 size_t key_presses[512] = {0};
@@ -895,7 +895,7 @@ int main(int argc, char** argv) {
                     int utfl;
                     int* utfs = LoadCodepoints(cwd, &utfl);
                     int strl = cwdl + 1 + line.end - line.start;
-                    int* str = malloc(strl);
+                    int* str = malloc(strl*sizeof(int));
                     memcpy(str + utfl + 1, save_buffer.content + line.start, sizeof(int)*(line.end-line.start));
                     memcpy(str, utfs, utfl*sizeof(int));
                     str[utfl] = '/';
