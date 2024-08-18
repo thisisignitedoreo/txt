@@ -348,6 +348,7 @@ void color_highlight_c(Buffer* buf) {
     bool comment = false;
     for (size_t i = 0; i < da_length(buf->lines); i++) {
         bool preprocessor_line = false;
+        bool done_preprocessor = false;
         Line line = buf->lines[i];
         int line_length = line.end-line.start;
 
@@ -365,7 +366,8 @@ void color_highlight_c(Buffer* buf) {
                 free(b);
                 UnloadUTF8(bu);
 
-                Token token = {i, j-length, j, preprocessor_line ? PREPROCESSOR : keyword ? KWORD : DEFAULT};
+                Token token = {i, j-length, j, preprocessor_line ? (!done_preprocessor ? PREPROCESSOR : (keyword ? KWORD : DEFAULT)) : (keyword ? KWORD : DEFAULT)};
+                done_preprocessor = true;
                 da_push(buf->tokens, token);
             } else if (isdigit(ch) && !comment) {
                 size_t length = 1;
@@ -448,7 +450,7 @@ void color_highlight_openfile(Buffer* buf) {
             color = KWORD;
         } else if (i == 1) {
             color = COMMENT;
-        } else if (buf->content[buf->lines[i].end-1] == '/' || memcmp(buf->content + buf->lines[i].start, "..", buf->lines[i].end-buf->lines[i].start) == 0) {
+        } else if (buf->content[buf->lines[i].end-1] == '/' || i == 2) {
             color = NUMBER;
         } else {
             color = DEFAULT;
