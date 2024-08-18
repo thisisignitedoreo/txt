@@ -5,7 +5,11 @@ portable and half usable text editor from-scratch in c&raylib
 **note:** this is my first big project in c in general, please be generous
 
 ## galery
-![screenshot](assets/screenshot.png)
+![screenshot1](assets/screenshot1.png)
+_Empty buffer with "Hello world" in txt_
+
+![screenshot2](assets/screenshot2.png)
+_txt's src opened in itself_
 
 ## quickstart
 to compile run `$ ./build.sh` or `$ ./build.sh windows`<br/>
