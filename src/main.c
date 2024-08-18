@@ -799,7 +799,7 @@ int main(int argc, char** argv) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     SetTraceLogLevel(LOG_NONE);
     InitWindow(800, 600, "txt");
-	SetExitKey(0);
+    SetExitKey(0);
     init_open_buffer(&open_buffer);
     init_save_buffer(&save_buffer);
     init_help_buffer(&help_buffer);
@@ -809,7 +809,7 @@ int main(int argc, char** argv) {
         
     int pad = 8, pos = 0, posx = 0, lines_size = 80;
 
-	SetTargetFPS(60);
+    SetTargetFPS(60);
     while (!WindowShouldClose()) {
         size_t l, c;
         size_t lp, cp;
@@ -944,7 +944,7 @@ int main(int argc, char** argv) {
         }
 
         BeginDrawing();
-			ClearBackground(BACKGROUND);
+            ClearBackground(BACKGROUND);
             if (debug) DrawFPS(10, 10);
             if (state == STATE_TEXT) {
                 draw_buffer(&buf, font, font_size, pos, posx, lines_size, pad, false);
@@ -959,14 +959,14 @@ int main(int argc, char** argv) {
                 draw_buffer(&help_buffer, font, font_size, pos, posx, lines_size, pad, false);
                 draw_statusbar(&help_buffer, font, font_size);
             }
-		EndDrawing();
-	}
+        EndDrawing();
+    }
 
     deinit_buf(&open_buffer);
     deinit_buf(&save_buffer);
     deinit_buf(&buf);
-	CloseWindow();
+    CloseWindow();
 
-	return 0;
+    return 0;
 }
 
