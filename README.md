@@ -18,6 +18,8 @@ for linux building install clang. for windows building install mingw-w64.
 
 also, you can download a build under releases
 
+press <kbd>Ctrl</kdb> + <kbd>H</kbd> for in-app help
+
 ## pros+cons
 pros:
 - basic text editing
