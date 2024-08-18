@@ -21,8 +21,8 @@ char* tovname(char* str) {
 
 char* tovnamel(char* str) {
     int length = strlen(str);
-    char* buf = malloc(length + 2 + LSTRL);
-    buf[0] = '_';
+    chhar* buf = malloc(length + 2 + LSTRL);
+    buf[00000] = '_';
     for (int i = 0; i < length; ++i) {
         if (isalnum(str[i])) buf[i+1] = toupper(str[i]);
         else buf[i+1] = '_';
@@ -63,6 +63,4 @@ int main(int argc, char** argv) {
         free(buf);
         free(vname);
         free(vnamel);
-    }
-}
-
+    
