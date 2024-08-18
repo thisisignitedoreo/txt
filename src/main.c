@@ -19,6 +19,7 @@
 #define NUMBER       (Color){181, 219, 255, 255}
 #define KWORD        (Color){252, 237, 162, 255}
 #define STRING       (Color){252, 167, 162, 255}
+#define ERROR        (Color){255, 162, 162, 255}
 #define PREPROCESSOR (Color){218, 181, 255, 255}
 
 typedef struct {
@@ -77,7 +78,7 @@ bool buf_get_selection_cursor(Buffer* buf, size_t* lp, size_t* cp) {
     size_t res_l = 0;
     for (size_t l = 0; l < da_length(buf->lines); ++l) {
         Line line = buf->lines[l];
-        if (line.start <= buf->selection_origin && buf->selection_origin <= line.end) {
+        if ((int) line.start <= buf->selection_origin && buf->selection_origin <= (int) line.end) {
             res_line = line;
             res_l = l;
             break;
@@ -183,7 +184,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
             DrawRectangle(pad + line_size + posx, y, size.x, size.y, FAINT_FG);
         }
 
-        if (selection && buf->selection_origin > buf->cursor) {
+        if (selection && buf->selection_origin > (int) buf->cursor) {
             if (cl == i && cl == sl) {
                 int str[sc-cc], strl = sc-cc;
                 memcpy(str, buf->content + buf->cursor, strl*sizeof(int));
@@ -229,7 +230,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
             }
-        } else if (selection && buf->selection_origin < buf->cursor) {
+        } else if (selection && buf->selection_origin < (int) buf->cursor) {
             if (cl == i && cl == sl) {
                 int str[cc-sc], strl = cc-sc;
                 memcpy(str, buf->content + buf->selection_origin, strl*sizeof(int));
@@ -280,7 +281,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
         draw_text(buf->content + line.start,
                   font, pad+line_size, y, font_size, posx, i, buf->tokens);
 
-        if (cl == i && (!selection || buf->cursor == buf->selection_origin)) {
+        if (cl == i && (!selection || buf->cursor == (size_t) buf->selection_origin)) {
             int str[cc];
             memcpy(str, buf->content + line.start, cc*sizeof(int));
             char* utf8_string = LoadUTF8(str, cc);
@@ -459,15 +460,51 @@ void color_highlight_openfile(Buffer* buf) {
     }
 }
 
+void color_highlight_commiteditmsg(Buffer* buf) {
+    for (size_t i = 0; i < da_length(buf->lines); i++) {
+        Line line = buf->lines[i];
+        size_t line_length = line.end-line.start;
+        int comment = -1;
+
+        for (size_t j = 0; j < line_length; ++j) {
+            if (buf->content[line.start+j] == '#') {
+                comment = j;
+                break;
+            }
+        }
+
+        Color color = {0};
+        if (i == 0) {
+            color = KWORD;
+        } else if (i == 1) {
+            color = ERROR;
+        } else {
+            color = DEFAULT;
+        }
+        
+        if (comment >= 0) {
+            Token token = {i, 0, comment, color};
+            da_push(buf->tokens, token);
+            Token token2 = {i, comment, line_length, COMMENT};
+            da_push(buf->tokens, token2);
+        } else {
+            Token token = {i, 0, line_length, color};
+            da_push(buf->tokens, token);
+        }
+    }
+}
+
 void color_highlight(Buffer* buf) {
     da_free(buf->tokens);
     buf->tokens = da_new(Token);
+    if (buf->filename == 0) { color_highlight_simple(buf); return; }
     char* utf8_string = LoadUTF8(buf->filename, buf->filenamel);
-    if (utf8_string == 0) color_highlight_simple(buf);
-    else if (endswith(utf8_string, ".c") || endswith(utf8_string, ".h"))
+    if (endswith(utf8_string, ".c") || endswith(utf8_string, ".h"))
         color_highlight_c(buf);
     else if (strcmp(utf8_string, "Open a file...") == 0 || strcmp(utf8_string, "Save a file...") == 0)
         color_highlight_openfile(buf);
+    else if (endswith(utf8_string, "COMMIT_EDITMSG"))
+        color_highlight_commiteditmsg(buf);
     else color_highlight_simple(buf);
     UnloadUTF8(utf8_string);
 }
@@ -503,7 +540,13 @@ void init_help_buffer(Buffer* buf) {
                        "Ctrl-'-':     Decrease font size\n"
                        "Ctrl-'+':     Increase font size\n"
                        "Ctrl-L:       Enable/Disable line counter\n"
-                       "ESC:          Escape to Text mode from any other mode (save/open/help)";
+                       "Hold Shift:   Create a selection\n"
+                       "Ctrl-C:       Copy a selection to system clipboard\n"
+                       "Ctrl-X:       Copy a selection to system clipboard and remove\n"
+                       "              it from a buffer\n"
+                       "Ctrl-P:       Paste system clipboard content into a buffer\n"
+                       "ESC:          Escape to Text mode from any other mode\n"
+                       "              (save/open/help)";
     ustr = LoadCodepoints(hstr, &ustrl);
     for (int i = 0; i < ustrl; ++i) da_push(buf->content, ustr[i]);
 
@@ -606,7 +649,7 @@ void push_at_cursor(Buffer* buf, int charachter) {
     da_push(buf->content, 0);
     memcpy(buf->content + buf->cursor + 1, buf->content + buf->cursor, (da_length(buf->content) - 1 - buf->cursor)*sizeof(int));
     buf->content[buf->cursor] = charachter;
-    if (buf->selection_origin > buf->cursor && buf->selection_origin != -1) buf->selection_origin++;
+    if ((size_t) buf->selection_origin > buf->cursor && buf->selection_origin != -1) buf->selection_origin++;
     buf->cursor++;
 }
 
@@ -912,7 +955,7 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     for (int i = 0; i < fs; ++i) {
         da_push(buf->content, uf[i]);
     }
-    UnloadCodepoints(uf);
+    if (fs != 0) UnloadCodepoints(uf);
     fclose(f);
     update_newlines(buf);
     color_highlight(buf);
@@ -1027,7 +1070,7 @@ int main(int argc, char** argv) {
                     if (buf.selection_origin != -1) {
                         remove_selection(&buf);
                     }
-                    char* clipboard = GetClipboardText();
+                    const char* clipboard = GetClipboardText();
                     int cliplen;
                     int* clipcodep = LoadCodepoints(clipboard, &cliplen);
                     for (int i = 0; i < cliplen; ++i) {
@@ -1129,7 +1172,7 @@ int main(int argc, char** argv) {
                     if (save_buffer.selection_origin != -1) {
                         remove_selection(&save_buffer);
                     }
-                    char* clipboard = GetClipboardText();
+                    const char* clipboard = GetClipboardText();
                     int cliplen;
                     int* clipcodep = LoadCodepoints(clipboard, &cliplen);
                     for (int i = 0; i < cliplen; ++i) {
