@@ -31,3 +31,6 @@ cons:
 - no unicode support (content is just big char dynamic array)
 - some more idk
 
+## thanks to
+- creators of font Victor Mono, as it is used as default font here
+
