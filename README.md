@@ -12,14 +12,18 @@ _Empty buffer with "Hello world" in txt_
 _txt's src opened in itself_
 
 ## quickstart
-to compile run `$ make linux` or `$ make windows`<br/>
-_compilation on windows isn't supported, sorry_
+compilation under linux:
+> to compile for linux run `$ make linux`
+> to cross-compile for windows run `$ make windows`
+compilation under windows:
+> install msys2 and install `gcc` package
+> run `$ make windows`, or `$ make windows-console`
+> to compile with debug console
+compilation under macOS:
+> install xcode and run `$ make linux`
 
 to compile bundler run `$ make bundle`<br/>
 to use bundler run `$ ./bundle <file> [<another-file>] [...] 2> src/file.c`
-
-for linux building install clang or gcc. for windows building install the mingw-w64 compiling set.<br/>
-compiling for mac (darwin) using XCode should work since it is a posix system
 
 also, you can download a build under releases
 
