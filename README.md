@@ -35,7 +35,7 @@ press <kbd>Ctrl</kbd> + <kbd>H</kbd> for in-app help
 pros:
 - basic text editing
 - opening and saving of files
-- c syntax highlighting
+- c&python syntax highlighting
 
 cons:
 - tabs (\t) dont work (show up as 1 symbol)
