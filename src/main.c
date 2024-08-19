@@ -619,7 +619,7 @@ void init_open_buffer(Buffer* buf) {
             const char* str = basename(files.paths[i]);
             int fl;
             int* fs = LoadCodepoints(str, &fl);
-            for (size_t j = 0; j < fl; ++j) {
+            for (int j = 0; j < fl; ++j) {
                 da_push(buf->content, fs[j]);
             }
             da_push(buf->content, '/');
@@ -632,7 +632,7 @@ void init_open_buffer(Buffer* buf) {
             const char* str = basename(files.paths[i]);
             int fl;
             int* fs = LoadCodepoints(str, &fl);
-            for (size_t j = 0; j < fl; ++j) {
+            for (int j = 0; j < fl; ++j) {
                 da_push(buf->content, fs[j]);
             }
             da_push(buf->content, '\n');

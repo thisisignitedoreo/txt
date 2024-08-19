@@ -15,7 +15,7 @@ windows: $(SRC)
 windows-console: $(SRC)
 	x86_64-w64-mingw32-cc -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib -o $(TARGET).exe $^ -l:libraylib.a -lwinmm -lgdi32
 
-bundle: bundle.c
+bundle: src/bundle.c
 	cc -o bundle src/bundle.c
 
 # Clean up build artifacts
