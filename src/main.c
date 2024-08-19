@@ -19,6 +19,7 @@
 #define NUMBER       (Color){181, 219, 255, 255}
 #define KWORD        (Color){252, 237, 162, 255}
 #define STRING       (Color){252, 167, 162, 255}
+#define ERROR        (Color){255, 162, 162, 255}
 #define PREPROCESSOR (Color){218, 181, 255, 255}
 
 typedef struct {
@@ -34,25 +35,20 @@ typedef struct {
 } Token;
 
 typedef struct {
-    const char* filename;
-    char* content;
+    int* filename;
+    size_t filenamel;
+    int* content;
     Line* lines;
     size_t cursor;
     Token* tokens;
     bool changed;
     bool readonly;
+    int selection_origin;
 } Buffer;
 
 Buffer* buffers = 0;
 size_t buffers_length = 0;
 size_t current_buffer = 0;
-
-char* sized_str_to_cstr(char* str, size_t length) {
-    char* res = malloc(length + 1);
-    memcpy(res, str, length);
-    res[length] = '\0';
-    return res;
-}
 
 void buf_get_cursor_pos(Buffer* buf, Font font, int font_size, size_t* lp, size_t* cp) {
     int y = 0, x = 0;
@@ -61,10 +57,11 @@ void buf_get_cursor_pos(Buffer* buf, Font font, int font_size, size_t* lp, size_
         Line line = buf->lines[l];
         
         if (line.start <= buf->cursor && buf->cursor <= line.end) {
-            char str[buf->cursor - line.start + 1];
-            memcpy(str, buf->content + line.start, buf->cursor - line.start);
-            str[buf->cursor - line.start] = '\0';
-            lsize = MeasureTextEx(font, str, font_size, 0);
+            int str[buf->cursor - line.start];
+            memcpy(str, buf->content + line.start, sizeof(int)*(buf->cursor - line.start));
+            char* utf8_string = LoadUTF8(str, buf->cursor - line.start);
+            lsize = MeasureTextEx(font, utf8_string, font_size, 0);
+            UnloadUTF8(utf8_string);
             x = lsize.x;
             break;
         }
@@ -73,6 +70,23 @@ void buf_get_cursor_pos(Buffer* buf, Font font, int font_size, size_t* lp, size_
     }
     *lp = y;
     *cp = x;
+}
+
+bool buf_get_selection_cursor(Buffer* buf, size_t* lp, size_t* cp) {
+    if (buf->selection_origin < 0) return false;
+    Line res_line = {0};
+    size_t res_l = 0;
+    for (size_t l = 0; l < da_length(buf->lines); ++l) {
+        Line line = buf->lines[l];
+        if ((int) line.start <= buf->selection_origin && buf->selection_origin <= (int) line.end) {
+            res_line = line;
+            res_l = l;
+            break;
+        }
+    }
+    *lp = res_l;
+    *cp = buf->selection_origin - res_line.start;
+    return true;
 }
 
 void buf_get_cursor(Buffer* buf, size_t* lp, size_t* cp) {
@@ -90,7 +104,7 @@ void buf_get_cursor(Buffer* buf, size_t* lp, size_t* cp) {
     *cp = buf->cursor - res_line.start;
 }
 
-void draw_text(char* str, Font font, size_t x, size_t y,
+void draw_text(int* str, Font font, size_t x, size_t y,
                size_t font_size, int posx, size_t line_num, Token* tokens) {
     size_t dx = 0;
 
@@ -98,11 +112,12 @@ void draw_text(char* str, Font font, size_t x, size_t y,
         Token token = tokens[i];
         size_t token_length = token.end - token.start;
         if (token.line == line_num && token_length > 0) {
-            char dstr[token_length+1];
-            dstr[token_length] = '\0';
-            memcpy(dstr, str + token.start, token_length);
-            DrawTextEx(font, dstr, (Vector2) {(float) dx+x+posx, (float) y}, font_size, 0, token.color);
-            Vector2 text_size = MeasureTextEx(font, dstr, font_size, 0);
+            int dstr[token_length];
+            memcpy(dstr, str + token.start, token_length*sizeof(int));
+            char* utf8_string = LoadUTF8(dstr, token_length);
+            DrawTextEx(font, utf8_string, (Vector2) {(float) dx+x+posx, (float) y}, font_size, 0, token.color);
+            Vector2 text_size = MeasureTextEx(font, utf8_string, font_size, 0);
+            UnloadUTF8(utf8_string);
             dx += text_size.x;
         }
     }
@@ -145,7 +160,8 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
     int inner_pad = 2;
     int y = pad - posy * font_size - posy * inner_pad;
     int drawn_y = y;
-    size_t cl, cc;
+    size_t cl, cc, sl, sc;
+    bool selection = buf_get_selection_cursor(buf, &sl, &sc);
     buf_get_cursor(buf, &cl, &cc);
     for (size_t i = 0; i < da_length(buf->lines); ++i) {
         if (drawn_y < -font_size) {
@@ -160,20 +176,118 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
         DrawTextEx(font, lstr, (Vector2) {pad + posx - lsize.x + line_size, y}, font_size, 0, MIDDLEGROUND);
 
         if (cl == i && select_line) {
-            char* str = sized_str_to_cstr(buf->content + line.start, line.end-line.start);
-            Vector2 size = MeasureTextEx(font, str, font_size, 0);
-            free(str);
+            int str[line.end-line.start];
+            memcpy(str, buf->content + line.start, (line.end-line.start)*sizeof(int));
+            char* utf8_string = LoadUTF8(str, line.end - line.start);
+            Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+            UnloadUTF8(utf8_string);
             DrawRectangle(pad + line_size + posx, y, size.x, size.y, FAINT_FG);
+        }
+
+        if (selection && buf->selection_origin > (int) buf->cursor) {
+            if (cl == i && cl == sl) {
+                int str[sc-cc], strl = sc-cc;
+                memcpy(str, buf->content + buf->cursor, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                int sstr[cc], sstrl = cc;
+                memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
+                utf8_string = LoadUTF8(sstr, sstrl);
+                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+
+                DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (cl == i && cl != sl) {
+                int str[cc], strl = cc;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                int sstr[(line.end-line.start)-cc], sstrl = (line.end-line.start)-cc;
+                memcpy(sstr, buf->content + line.start + cc, sstrl*sizeof(int));
+                utf8_string = LoadUTF8(sstr, sstrl);
+                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+
+                DrawRectangle(pad + line_size + posx + size.x, y, ssize.x, ssize.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (sl == i && cl != sl) {
+                int str[sc], strl = sc;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (cl < i && sl > i) {
+                int str[line.end-line.start], strl = line.end-line.start;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            }
+        } else if (selection && buf->selection_origin < (int) buf->cursor) {
+            if (cl == i && cl == sl) {
+                int str[cc-sc], strl = cc-sc;
+                memcpy(str, buf->content + buf->selection_origin, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                int sstr[sc], sstrl = sc;
+                memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
+                utf8_string = LoadUTF8(sstr, sstrl);
+                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+
+                DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (cl == i && cl != sl) {
+                int str[cc], strl = cc;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (sl == i && cl != sl) {
+                int str[(line.end-line.start)-sc], strl = (line.end-line.start)-sc;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                int sstr[sc], sstrl = sc;
+                memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
+                utf8_string = LoadUTF8(sstr, sstrl);
+                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            } else if (cl > i && sl < i) {
+                int str[line.end-line.start], strl = line.end-line.start;
+                memcpy(str, buf->content + line.start, strl*sizeof(int));
+                char* utf8_string = LoadUTF8(str, strl);
+                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                UnloadUTF8(utf8_string);
+                
+                DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
+            }
         }
 
         draw_text(buf->content + line.start,
                   font, pad+line_size, y, font_size, posx, i, buf->tokens);
 
-        if (cl == i) {
-            char* str = sized_str_to_cstr(buf->content + line.start, cc);
-            Vector2 size = MeasureTextEx(font, str, font_size, 0);
+        if (cl == i && (!selection || buf->cursor == (size_t) buf->selection_origin)) {
+            int str[cc];
+            memcpy(str, buf->content + line.start, cc*sizeof(int));
+            char* utf8_string = LoadUTF8(str, cc);
+            Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+            UnloadUTF8(utf8_string);
             DrawRectangle(size.x + pad + line_size + posx, y, 2, font_size, FOREGROUND);
-            free(str);
         }
     
         y += font_size + inner_pad;
@@ -234,6 +348,7 @@ void color_highlight_c(Buffer* buf) {
     bool comment = false;
     for (size_t i = 0; i < da_length(buf->lines); i++) {
         bool preprocessor_line = false;
+        bool done_preprocessor = false;
         Line line = buf->lines[i];
         int line_length = line.end-line.start;
 
@@ -241,15 +356,18 @@ void color_highlight_c(Buffer* buf) {
             char ch = buf->content[line.start + j];
             if (isalpha(ch) && !comment) {
                 size_t length = 1;
-                j++; while (isalnum(buf->content[line.start + j]) && j < line_length) { length++; j++; }
-                char* b = malloc(length + 1);
-                b[length] = '\0';
+                j++; while ((isalnum(buf->content[line.start + j]) || buf->content[line.start + j] == '_') && j < line_length) { length++; j++; }
 
-                memcpy(b, buf->content + line.start + j - length, length);
-                bool keyword = needlehaystack_string(b, keywords, keywords_length);
+                int* b = malloc(sizeof(int)*length);
+                memcpy(b, buf->content + line.start + j - length, sizeof(int)*length);
+                char* bu = LoadUTF8(b, length);
+
+                bool keyword = needlehaystack_string(bu, keywords, keywords_length);
                 free(b);
+                UnloadUTF8(bu);
 
-                Token token = {i, j-length, j, preprocessor_line ? PREPROCESSOR : keyword ? KWORD : DEFAULT};
+                Token token = {i, j-length, j, preprocessor_line ? (!done_preprocessor ? PREPROCESSOR : (keyword ? KWORD : DEFAULT)) : (keyword ? KWORD : DEFAULT)};
+                done_preprocessor = true;
                 da_push(buf->tokens, token);
             } else if (isdigit(ch) && !comment) {
                 size_t length = 1;
@@ -332,7 +450,7 @@ void color_highlight_openfile(Buffer* buf) {
             color = KWORD;
         } else if (i == 1) {
             color = COMMENT;
-        } else if (buf->content[buf->lines[i].end-1] == '/' || memcmp(buf->content + buf->lines[i].start, "..", buf->lines[i].end-buf->lines[i].start) == 0) {
+        } else if (buf->content[buf->lines[i].end-1] == '/' || i == 2) {
             color = NUMBER;
         } else {
             color = DEFAULT;
@@ -344,15 +462,53 @@ void color_highlight_openfile(Buffer* buf) {
     }
 }
 
+void color_highlight_commiteditmsg(Buffer* buf) {
+    for (size_t i = 0; i < da_length(buf->lines); i++) {
+        Line line = buf->lines[i];
+        size_t line_length = line.end-line.start;
+        int comment = -1;
+
+        for (size_t j = 0; j < line_length; ++j) {
+            if (buf->content[line.start+j] == '#') {
+                comment = j;
+                break;
+            }
+        }
+
+        Color color = {0};
+        if (i == 0) {
+            color = KWORD;
+        } else if (i == 1) {
+            color = ERROR;
+        } else {
+            color = DEFAULT;
+        }
+        
+        if (comment >= 0) {
+            Token token = {i, 0, comment, color};
+            da_push(buf->tokens, token);
+            Token token2 = {i, comment, line_length, COMMENT};
+            da_push(buf->tokens, token2);
+        } else {
+            Token token = {i, 0, line_length, color};
+            da_push(buf->tokens, token);
+        }
+    }
+}
+
 void color_highlight(Buffer* buf) {
     da_free(buf->tokens);
     buf->tokens = da_new(Token);
-    if (buf->filename == 0) color_highlight_simple(buf);
-    else if (endswith(buf->filename, ".c") || endswith(buf->filename, ".h"))
+    if (buf->filename == 0) { color_highlight_simple(buf); return; }
+    char* utf8_string = LoadUTF8(buf->filename, buf->filenamel);
+    if (endswith(utf8_string, ".c") || endswith(utf8_string, ".h"))
         color_highlight_c(buf);
-    else if (strcmp(buf->filename, "Open a file...") == 0 || strcmp(buf->filename, "Save a file...") == 0)
+    else if (strcmp(utf8_string, "Open a file...") == 0 || strcmp(utf8_string, "Save a file...") == 0)
         color_highlight_openfile(buf);
+    else if (endswith(utf8_string, "COMMIT_EDITMSG"))
+        color_highlight_commiteditmsg(buf);
     else color_highlight_simple(buf);
+    UnloadUTF8(utf8_string);
 }
 
 void update_newlines(Buffer* buf) {
@@ -372,13 +528,13 @@ void update_newlines(Buffer* buf) {
 
 void init_help_buffer(Buffer* buf) {
     buf->lines = da_new(Line);
-    buf->content = da_new(char);
+    buf->content = da_new(int);
     buf->tokens = da_new(Token);
-    const char* str = "Help Text";
-    char* strm = malloc(10);
-    strm[9] = '\0';
-    memcpy(strm, str, 9);
-    buf->filename = strm;
+    buf->selection_origin = -1;
+    int ustrl = 0;
+    int* ustr = LoadCodepoints("Help Text", &ustrl);
+    buf->filename = ustr;
+    buf->filenamel = ustrl;
 
     const char* hstr = "Ctrl-S:       Save a file (select location if didnt save before)\n"
                        "Ctrl-Shift-S: Save a file to a new location\n"
@@ -386,30 +542,37 @@ void init_help_buffer(Buffer* buf) {
                        "Ctrl-'-':     Decrease font size\n"
                        "Ctrl-'+':     Increase font size\n"
                        "Ctrl-L:       Enable/Disable line counter\n"
-                       "ESC:          Escape to Text mode from any other mode (save/open/help)";
-    size_t hstrl = strlen(hstr);
-    for (size_t i = 0; i < hstrl; ++i) da_push(buf->content, hstr[i]);
+                       "Hold Shift:   Create a selection\n"
+                       "Ctrl-C:       Copy a selection to system clipboard\n"
+                       "Ctrl-X:       Copy a selection to system clipboard and remove\n"
+                       "              it from a buffer\n"
+                       "Ctrl-P:       Paste system clipboard content into a buffer\n"
+                       "ESC:          Escape to Text mode from any other mode\n"
+                       "              (save/open/help)";
+    ustr = LoadCodepoints(hstr, &ustrl);
+    for (int i = 0; i < ustrl; ++i) da_push(buf->content, ustr[i]);
 
     update_newlines(buf);
     color_highlight(buf);
 }
 
 void init_buf(Buffer* buf) {
+    buf->selection_origin = -1;
     buf->lines = da_new(Line);
-    buf->content = da_new(char);
+    buf->content = da_new(int);
     buf->tokens = da_new(Token);
     update_newlines(buf);
     color_highlight(buf);
 }
 
 void deinit_buf(Buffer* buf) {
+    buf->selection_origin = -1;
     da_free(buf->lines);
     da_free(buf->content);
     da_free(buf->tokens);
     buf->changed = false;
-    if (buf->filename != 0) free((char*) buf->filename);
+    if (buf->filename != 0) free(buf->filename);
 }
-
 
 void print_sb(char* sb) {
     for (size_t i = 0; i < da_length(sb); ++i) printf("%c", sb[i]);
@@ -417,22 +580,24 @@ void print_sb(char* sb) {
 }
 
 void init_open_buffer(Buffer* buf) {
+    buf->selection_origin = -1;
     buf->lines = da_new(Line);
-    buf->content = da_new(char);
+    buf->content = da_new(int);
     buf->tokens = da_new(Token);
-    const char* str = "Open a file...";
-    char* strm = malloc(15);
-    strm[14] = '\0';
-    memcpy(strm, str, 14);
-    buf->filename = strm;
+    int ustrl = 0;
+    int* ustr = LoadCodepoints("Open a file...", &ustrl);
+    buf->filename = ustr;
+    buf->filenamel = ustrl;
 
     const char* path = GetWorkingDirectory();
     FilePathList files = LoadDirectoryFiles(path);
     
-    size_t length = strlen(path);
-    for (size_t j = 0; j < length; ++j) {
-        da_push(buf->content, path[j]);
+    int ucwdl;
+    int* ucwd = LoadCodepoints(path, &ucwdl);
+    for (int j = 0; j < ucwdl; ++j) {
+        da_push(buf->content, ucwd[j]);
     }
+    UnloadCodepoints(ucwd);
     da_push(buf->content, '\n');
     da_push(buf->content, '\n');
     
@@ -473,22 +638,21 @@ void init_open_buffer(Buffer* buf) {
 
 void init_save_buffer(Buffer* buf) {
     init_open_buffer(buf);
-    free((char*) buf->filename);
-    const char* str = "Save a file...";
-    char* strm = malloc(15);
-    strm[14] = '\0';
-    memcpy(strm, str, 14);
-    buf->filename = strm;
+    int ustrl = 0;
+    int* ustr = LoadCodepoints("Save a file...", &ustrl);
+    buf->filename = ustr;
+    buf->filenamel = ustrl;
     
     update_newlines(buf);
     color_highlight(buf);
 }
 
-void push_at_cursor(Buffer* buf, char charachter) {
-    da_push(buf->content, '\0');
-    memcpy(buf->content + buf->cursor + 1, buf->content + buf->cursor, da_length(buf->content) - 1 - buf->cursor);
+void push_at_cursor(Buffer* buf, int charachter) {
+    da_push(buf->content, 0);
+    memcpy(buf->content + buf->cursor + 1, buf->content + buf->cursor, (da_length(buf->content) - 1 - buf->cursor)*sizeof(int));
     buf->content[buf->cursor] = charachter;
-    buf->cursor += 1;
+    if ((size_t) buf->selection_origin > buf->cursor && buf->selection_origin != -1) buf->selection_origin++;
+    buf->cursor++;
 }
 
 void push_cstr_at_cursor(Buffer* buf, char* string) {
@@ -500,9 +664,14 @@ void push_cstr_at_cursor(Buffer* buf, char* string) {
 
 void save_file(Buffer* buf) {
     buf->changed = false;
-    FILE* f = fopen(buf->filename, "w");
-    fwrite(buf->content, 1, da_length(buf->content), f);
+    char* utf8_string = LoadUTF8(buf->content, da_length(buf->content));
+    char* ufilename = LoadUTF8(buf->filename, buf->filenamel);
+    FILE* f = fopen(ufilename, "w");
+    size_t utf8l = strlen(utf8_string);
+    fwrite(utf8_string, 1, utf8l, f);
+    UnloadUTF8(utf8_string);
     fclose(f);
+    UnloadUTF8(ufilename);
 }
 
 size_t key_presses[512] = {0};
@@ -526,15 +695,35 @@ bool key_pressed(int key) {
     return false;
 }
 
+void remove_selection(Buffer* buf) {
+    size_t start = buf->cursor;
+    size_t end = buf->selection_origin;
+    if (start > end) {
+        start = buf->selection_origin;
+        end = buf->cursor;
+    }
+    size_t len = da_length(buf->content)-end;
+    int temp[len];
+    memcpy(temp, buf->content + end, sizeof(int)*len);
+    memcpy(buf->content + start, temp, sizeof(int)*len);
+    for (size_t i = 0; i < end-start; ++i) da_pop(buf->content, 0);
+    buf->selection_origin = -1;
+    buf->cursor = start;
+}
+
 void update_buf_ro(Buffer* buf) {
-    if (key_pressed(KEY_LEFT)) {
+    if (IsKeyDown(KEY_LEFT_SHIFT)) {
+        if (buf->selection_origin == -1) buf->selection_origin = buf->cursor;
+    } else if (key_pressed(KEY_LEFT)) {
         if (buf->cursor > 0) {
             buf->cursor -= 1;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_RIGHT)) {
         if (buf->cursor < da_length(buf->content)) {
             buf->cursor += 1;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_UP)) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -546,6 +735,7 @@ void update_buf_ro(Buffer* buf) {
                 buf->cursor = next_line.start + c;
             }
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_DOWN)) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -557,6 +747,7 @@ void update_buf_ro(Buffer* buf) {
                 buf->cursor = next_line.start + c;
             }
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     }
 
     size_t mouse_wheeled = 3;
@@ -575,6 +766,7 @@ void update_buf_ro(Buffer* buf) {
         } else {
             buf->cursor = buf->lines[0].start;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (wheel < 0) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -588,6 +780,7 @@ void update_buf_ro(Buffer* buf) {
         } else {
             buf->cursor = buf->lines[da_length(buf->lines)-1].end;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     }
 
     update_newlines(buf);
@@ -595,7 +788,7 @@ void update_buf_ro(Buffer* buf) {
 }
 
 void update_buf(Buffer* buf, bool change_lines) {
-    char key_char = GetCharPressed();
+    int key_char = GetCharPressed();
     while (key_char != 0) {
         if (change_lines) {
             if (key_char == '/') {
@@ -603,47 +796,59 @@ void update_buf(Buffer* buf, bool change_lines) {
                 continue;
             }
         }
+        if (buf->selection_origin != -1) remove_selection(buf);
         push_at_cursor(buf, key_char);
         buf->changed = true;
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
         key_char = GetCharPressed();
     }
 
+    if (IsKeyDown(KEY_LEFT_SHIFT)) {
+        if (buf->selection_origin == -1) buf->selection_origin = buf->cursor;
+    }
     if (key_pressed(KEY_ENTER) && !change_lines) {
+        if (buf->selection_origin != -1) remove_selection(buf);
         push_at_cursor(buf, '\n');
         buf->changed = true;
     } else if (key_pressed(KEY_DELETE)) {
-        if (buf->cursor < da_length(buf->content) && (change_lines ? buf->content[buf->cursor] != '\n' : true)) {
-            char* temp = malloc(da_length(buf->content) - buf->cursor - 1);
-            memcpy(temp, buf->content + buf->cursor + 1, da_length(buf->content) - buf->cursor - 1);
-            memcpy(buf->content + buf->cursor, temp, da_length(buf->content) - buf->cursor - 1);
-            free(temp);
+        if (buf->selection_origin != -1) remove_selection(buf);
+        else if (buf->cursor < da_length(buf->content) && (change_lines ? buf->content[buf->cursor] != '\n' : true)) {
+            int temp[da_length(buf->content) - buf->cursor - 1];
+            memcpy(temp, buf->content + buf->cursor + 1, (da_length(buf->content) - buf->cursor - 1)*sizeof(int));
+            memcpy(buf->content + buf->cursor, temp, (da_length(buf->content) - buf->cursor - 1)*sizeof(int));
             da_pop(buf->content, 0);
             buf->changed = true;
+            if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
         }
     } else if (key_pressed(KEY_BACKSPACE)) {
-        if (buf->cursor > 0 && (change_lines ? buf->content[buf->cursor-1] != '\n' : true)) {
-            char* temp = malloc(da_length(buf->content) - buf->cursor);
-            memcpy(temp, buf->content + buf->cursor, da_length(buf->content) - buf->cursor);
-            memcpy(buf->content + buf->cursor - 1, temp, da_length(buf->content) - buf->cursor);
-            free(temp);
+        if (buf->selection_origin != -1) remove_selection(buf);
+        else if (buf->cursor > 0 && (change_lines ? buf->content[buf->cursor-1] != '\n' : true)) {
+            int temp[da_length(buf->content) - buf->cursor];
+            memcpy(temp, buf->content + buf->cursor, sizeof(int)*(da_length(buf->content) - buf->cursor));
+            memcpy(buf->content + buf->cursor - 1, temp, sizeof(int)*(da_length(buf->content) - buf->cursor));
             da_pop(buf->content, 0);
             buf->cursor -= 1;
             buf->changed = true;
+            if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
         }
     } else if (key_pressed(KEY_TAB)) {
+        if (buf->selection_origin != -1) remove_selection(buf);
         push_at_cursor(buf, ' ');
         push_at_cursor(buf, ' ');
         push_at_cursor(buf, ' ');
         push_at_cursor(buf, ' ');
         buf->changed = true;
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_LEFT)) {
         if (buf->cursor > 0) {
             buf->cursor -= 1;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_RIGHT)) {
         if (buf->cursor < da_length(buf->content)) {
             buf->cursor += 1;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_UP)) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -655,6 +860,7 @@ void update_buf(Buffer* buf, bool change_lines) {
                 buf->cursor = next_line.start + c;
             }
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (key_pressed(KEY_DOWN)) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -666,6 +872,7 @@ void update_buf(Buffer* buf, bool change_lines) {
                 buf->cursor = next_line.start + c;
             }
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     }
 
     size_t mouse_wheeled = 3;
@@ -684,6 +891,7 @@ void update_buf(Buffer* buf, bool change_lines) {
         } else {
             buf->cursor = buf->lines[0].start;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     } else if (wheel < 0) {
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -697,6 +905,7 @@ void update_buf(Buffer* buf, bool change_lines) {
         } else {
             buf->cursor = buf->lines[da_length(buf->lines)-1].end;
         }
+        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     }
 
     if (change_lines) buf->changed = false;
@@ -716,7 +925,12 @@ void draw_statusbar(Buffer* buf, Font font, size_t font_size) {
     
     DrawRectangle(0, wh - font_size - pad*2, ww, wh, FAINT_FG);
     
-    const char* lstatus = TextFormat("%s%s", buf->filename == 0 ? "<new file>" : basename((char*) buf->filename), buf->changed ? "*" : "");
+    char* str;
+    if (buf->filename != 0) {
+        str = LoadUTF8(buf->filename, buf->filenamel);
+    }
+
+    const char* lstatus = TextFormat("%s%s", buf->filename == 0 ? "<new file>" : basename(str), buf->changed ? "*" : "");
     Vector2 lssize = MeasureTextEx(font, lstatus, font_size, 0);
     DrawTextEx(font, lstatus, (Vector2) {pad, wh - lssize.y - pad}, font_size, 0, FOREGROUND);
     
@@ -726,37 +940,24 @@ void draw_statusbar(Buffer* buf, Font font, size_t font_size) {
 }
 
 void init_buf_from_file(Buffer* buf, char* fname) {
-    buf->filename = fname;
+    int ufnl;
+    buf->filename = LoadCodepoints(fname, &ufnl);
+    buf->filenamel = ufnl;
+    buf->selection_origin = -1;
     FILE* f = fopen(fname, "r");
     buf->lines = da_new(Line);
-    buf->content = da_new(char);
-    buf->tokens = da_new(char);
+    buf->content = da_new(int);
+    buf->tokens = da_new(Token);
     size_t size = GetFileLength(fname);
     char* file = malloc(size);
     fread(file, 1, size, f);
-    bool good = true;
-    char ch = 0;
-    for (size_t i = 0; i < size; ++i) {
-        if (file[i] < 0x20 || file[i] > 0x7e ) {
-            if (file[i] != '\n' && file[i] != '\r' && file[i] != '\t') {
-                good = false;
-                ch = file[i];
-                break;
-            }
-        }
-        da_push(buf->content, file[i]);
-    }
-    if (!good) {
-        da_free(buf->content);
-        buf->content = da_new(char);
-        const char* str = TextFormat("This file is either non-ascii or binary.\n'%c'", ch); //, ch);
-        size_t strl = strlen(str);
-        buf->readonly = true;
-        for (size_t i = 0; i < strl; i++) {
-            da_push(buf->content, str[i]);
-        }
-    }
+    int fs;
+    int* uf = LoadCodepoints(file, &fs);
     free(file);
+    for (int i = 0; i < fs; ++i) {
+        da_push(buf->content, uf[i]);
+    }
+    if (fs != 0) UnloadCodepoints(uf);
     fclose(f);
     update_newlines(buf);
     color_highlight(buf);
@@ -770,9 +971,12 @@ void init_buf_from_file(Buffer* buf, char* fname) {
 int state = STATE_TEXT;
 
 Font load_font(size_t font_size) {
+    int codepoints[512] = { 0 };
+    for (int i = 0; i < 95; i++) codepoints[i] = 32 + i;
+    for (int i = 0; i < 255; i++) codepoints[96 + i] = 0x400 + i;
     if (FileExists("font.ttf") && !DirectoryExists("font.ttf"))
-        return LoadFontEx("font.ttf", font_size, 0, 0);
-    else return LoadFontFromMemory(".ttf", __FONT_TTF, __FONT_TTF_LENGTH, font_size, 0, 0);
+        return LoadFontEx("font.ttf", font_size, codepoints, 512);
+    else return LoadFontFromMemory(".ttf", __FONT_TTF, __FONT_TTF_LENGTH, font_size, codepoints, 512);
 }
 
 int main(int argc, char** argv) {
@@ -831,6 +1035,20 @@ int main(int argc, char** argv) {
             } else if (key_pressed(KEY_L)) {
                 if (lines_size == 80) lines_size = 0;
                 else if (lines_size == 0) lines_size = 80;
+            } else if (key_pressed(KEY_C) && buf.selection_origin != -1) {
+                size_t start = buf.cursor;
+                size_t end = buf.selection_origin;
+                if (start > end) {
+                    start = buf.selection_origin;
+                    end = buf.cursor;
+                }
+                int clipboard[end-start];
+                memcpy(clipboard, buf.content + start, sizeof(int)*(end-start));
+                char* utf8string = LoadUTF8(clipboard, end-start);
+                SetClipboardText(utf8string);
+                UnloadUTF8(utf8string);
+                update_newlines(&buf);
+                color_highlight(&buf);
             }
         }
 
@@ -850,6 +1068,34 @@ int main(int argc, char** argv) {
                     } else {
                         save_file(&buf);
                     }
+                } else if (key_pressed(KEY_V) && buf.readonly == false) {
+                    if (buf.selection_origin != -1) {
+                        remove_selection(&buf);
+                    }
+                    const char* clipboard = GetClipboardText();
+                    int cliplen;
+                    int* clipcodep = LoadCodepoints(clipboard, &cliplen);
+                    for (int i = 0; i < cliplen; ++i) {
+                        push_at_cursor(&buf, clipcodep[i]);
+                    }
+                    update_newlines(&buf);
+                    color_highlight(&buf);
+                    UnloadCodepoints(clipcodep);
+                } else if (key_pressed(KEY_X) && buf.readonly == false && buf.selection_origin != -1) {
+                    size_t start = buf.cursor;
+                    size_t end = buf.selection_origin;
+                    if (start > end) {
+                        start = buf.selection_origin;
+                        end = buf.cursor;
+                    }
+                    int clipboard[end-start];
+                    memcpy(clipboard, buf.content + start, sizeof(int)*(end-start));
+                    char* utf8string = LoadUTF8(clipboard, end-start);
+                    SetClipboardText(utf8string);
+                    UnloadUTF8(utf8string);
+                    remove_selection(&buf);
+                    update_newlines(&buf);
+                    color_highlight(&buf);
                 }
             } else {
                 if (buf.readonly) update_buf_ro(&buf);
@@ -867,20 +1113,19 @@ int main(int argc, char** argv) {
                         deinit_buf(&open_buffer);
                         init_open_buffer(&open_buffer);
                     } else {
-                        char* line = open_buffer.content + open_buffer.lines[l].start;
+                        int* line = open_buffer.content + open_buffer.lines[l].start;
                         size_t line_length = open_buffer.lines[l].end - open_buffer.lines[l].start;
-                        char* dir = malloc(line_length + 1);
-                        dir[line_length] = '\0';
-                        memcpy(dir, line, line_length);
-                        if (dir[line_length-1] == '/') {
-                            ChangeDirectory(dir);
+                        char* utf8_string = LoadUTF8(line, line_length);
+                        if (utf8_string[line_length-1] == '/') {
+                            ChangeDirectory(utf8_string);
                             deinit_buf(&open_buffer);
                             init_open_buffer(&open_buffer);
                         } else {
                             deinit_buf(&buf);
-                            init_buf_from_file(&buf, dir);
+                            init_buf_from_file(&buf, utf8_string);
                             state = STATE_TEXT;
                         }
+                        UnloadUTF8(utf8_string);
                     }
                 }
             }
@@ -895,14 +1140,17 @@ int main(int argc, char** argv) {
                 if (l == 1) {
                     const char* cwd = GetWorkingDirectory();
                     size_t cwdl = strlen(cwd);
-                    char* str = malloc(cwdl + 1 + line.end-line.start + 1);
-                    str[cwdl + 1 + line.end-line.start] = 0;
-                    memcpy(str + cwdl + 1, save_buffer.content + line.start, line.end-line.start);
-                    memcpy(str, cwd, cwdl);
-                    str[cwdl] = '/';
+                    int utfl;
+                    int* utfs = LoadCodepoints(cwd, &utfl);
+                    int strl = cwdl + 1 + line.end - line.start;
+                    int* str = malloc(strl*sizeof(int));
+                    memcpy(str + utfl + 1, save_buffer.content + line.start, sizeof(int)*(line.end-line.start));
+                    memcpy(str, utfs, utfl*sizeof(int));
+                    str[utfl] = '/';
                     
-                    free((char*) buf.filename);
+                    free(buf.filename);
                     buf.filename = str;
+                    buf.filenamel = strl;
                     save_file(&buf);
                     state = STATE_TEXT;
                 } else if (l > 1) {
@@ -911,17 +1159,48 @@ int main(int argc, char** argv) {
                         deinit_buf(&save_buffer);
                         init_save_buffer(&save_buffer);
                     } else if (save_buffer.content[line.end - 1] == '/') {
-                        char str[line.end-line.start + 1];
-                        str[line.end-line.start] = 0;
+                        int str[line.end-line.start];
                         memcpy(str, save_buffer.content + line.start, line.end-line.start);
-                        ChangeDirectory(str);
+                        char* ustr = LoadUTF8(str, line.end-line.start);
+                        ChangeDirectory(ustr);
+                        UnloadUTF8(ustr);
                         deinit_buf(&save_buffer);
                         init_save_buffer(&save_buffer);
                     }
                 }
             }
-            if (l == 1) update_buf(&save_buffer, true);
-            else update_buf_ro(&save_buffer);
+            if (l == 1) {
+                if (key_pressed(KEY_V) && save_buffer.readonly == false) {
+                    if (save_buffer.selection_origin != -1) {
+                        remove_selection(&save_buffer);
+                    }
+                    const char* clipboard = GetClipboardText();
+                    int cliplen;
+                    int* clipcodep = LoadCodepoints(clipboard, &cliplen);
+                    for (int i = 0; i < cliplen; ++i) {
+                        push_at_cursor(&save_buffer, clipcodep[i]);
+                    }
+                    update_newlines(&save_buffer);
+                    color_highlight(&save_buffer);
+                    UnloadCodepoints(clipcodep);
+                } else if (key_pressed(KEY_X) && save_buffer.readonly == false && save_buffer.selection_origin != -1) {
+                    size_t start = save_buffer.cursor;
+                    size_t end = save_buffer.selection_origin;
+                    if (start > end) {
+                        start = save_buffer.selection_origin;
+                        end = save_buffer.cursor;
+                    }
+                    int clipboard[end-start];
+                    memcpy(clipboard, save_buffer.content + start, sizeof(int)*(end-start));
+                    char* utf8string = LoadUTF8(clipboard, end-start);
+                    SetClipboardText(utf8string);
+                    UnloadUTF8(utf8string);
+                    remove_selection(&save_buffer);
+                    update_newlines(&save_buffer);
+                    color_highlight(&save_buffer);
+                }
+                update_buf(&save_buffer, true);
+            } else update_buf_ro(&save_buffer);
         } else if (state == STATE_HELP) {
             if (key_pressed(KEY_ESCAPE)) state = STATE_TEXT;
             else update_buf_ro(&help_buffer);
