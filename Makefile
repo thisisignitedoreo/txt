@@ -7,13 +7,13 @@ all: linux windows bundle
 
 # Compile the target
 linux: $(SRC)
-	cc -Wall -Wextra -I./ext/raylib/include -L./ext/raylib/lib -o $(TARGET) $^ -l:libraylib.a -lm -ldl -ggdb
+	gcc -Wall -Wextra -I./ext/raylib/include -L./ext/raylib/lib -o $(TARGET) $^ -l:libraylib.a -lm -ldl -ggdb
 
 windows: $(SRC)
-	x86_64-w64-mingw32-cc -mwindows -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib -o $(TARGET).exe $^ -l:libraylib.a -lwinmm -lgdi32
+	x86_64-w64-mingw32-gcc -mwindows -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib -o $(TARGET).exe $^ -l:libraylib.a -lwinmm -lgdi32
 
 windows-console: $(SRC)
-	x86_64-w64-mingw32-cc -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib -o $(TARGET).exe $^ -l:libraylib.a -lwinmm -lgdi32
+	x86_64-w64-mingw32-gcc -Wall -Wextra -I./ext/raylib-win/include -L./ext/raylib-win/lib -o $(TARGET).exe $^ -l:libraylib.a -lwinmm -lgdi32
 
 bundle: src/bundle.c
 	cc -o bundle src/bundle.c

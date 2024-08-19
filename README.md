@@ -13,12 +13,14 @@ _txt's src opened in itself_
 
 ## quickstart
 compilation under linux:
-> to compile for linux run `$ make linux`
+> to compile for linux run `$ make linux`<br/>
 > to cross-compile for windows run `$ make windows`
+
 compilation under windows:
-> install msys2 and install `gcc` package
-> run `$ make windows`, or `$ make windows-console`
+> install msys2 and install `gcc` package<br/>
+> run `$ make windows`, or `$ make windows-console`<br/>
 > to compile with debug console
+
 compilation under macOS:
 > install xcode and run `$ make linux`
 
