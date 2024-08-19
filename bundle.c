@@ -38,8 +38,9 @@ char *tovnamel(char *str) {
 }
 
 void print_usage() {
-  printf("Usage: ./bundle <file> [<file> <file>...] 2> file.c\n");
-  printf("  -h, --help      Show this help message and exit.\n");
+  printf(
+      "Usage: ./bundle <font.ttf> [<some-more-fonts.ttf>] [...] 2> src/font.c\n"
+      "  -h, --help      Show this help message and exit.\n");
 }
 
 int main(int argc, char **argv) {

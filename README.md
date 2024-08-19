@@ -17,7 +17,7 @@ _compilation on windows isn't supported, sorry_
 Or the usual `make` command should do the same
 
 to compile bundler run `$ ./build_bundler.sh`<br/>
-to use bundler run `$ ./bundle <file> [<file> <file>...] 2> file.c`
+to use bundler run `$ ./bundle <font.ttf> [<some-more-fonts.ttf> <more.ttf>...] 2> src/font.c`
 
 for linux building install clang or gcc. for windows building install the mingw-w64 compiling set.
 Compiling for mac (Darwin) using XCode should work since it is a BSD/Unix system
