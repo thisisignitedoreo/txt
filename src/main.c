@@ -960,7 +960,8 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     buf->content = da_new(int);
     buf->tokens = da_new(Token);
     size_t size = GetFileLength(fname);
-    char* file = malloc(size);
+    char* file = malloc(size+1);
+    file[size] = '\0';
     fread(file, 1, size, f);
     int fs;
     int* uf = LoadCodepoints(file, &fs);
