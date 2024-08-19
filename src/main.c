@@ -330,6 +330,14 @@ const char *keywords[] = {
 };
 int keywords_length = 97;
 
+const char *py_keywords[] = {
+    "and",    "as",    "assert", "break",  "class",   "continue", "def",    "del",
+    "elif",   "else",  "except", "False",  "finally", "from",     "global", "if",
+    "import", "in",    "is",     "lambda", "None",    "nonlocal", "not",    "or",
+    "pass",   "raise", "return", "True",   "try",     "while",    "with",   "yield",
+};
+int py_keywords_length = 32;
+
 bool needlehaystack_string(const char* string, const char** list, size_t list_length) {
     for (size_t i = 0; i < list_length; ++i) {
         if (strcmp(string, list[i]) == 0) return true;
@@ -353,7 +361,7 @@ void color_highlight_simple(Buffer* buf) {
     }
 }
 
-void color_highlight_c(Buffer* buf) {
+void color_highlight_basic(Buffer* buf, const char** keywords, int keywords_length, int comment_type) {
     bool comment = false;
     for (size_t i = 0; i < da_length(buf->lines); i++) {
         bool preprocessor_line = false;
@@ -398,7 +406,7 @@ void color_highlight_c(Buffer* buf) {
                 Token token = {i, j-length, j, STRING};
                 da_push(buf->tokens, token);
             } else {
-                if (comment) {
+                if (comment && comment_type == 0) {
                     bool comment_end = false;
                     for (int c = 0; c < line_length; c++) {
                         if (buf->content[line.start + j + c] == '*' && j < line_length-1 && buf->content[line.start + j + c + 1] == '/') {
@@ -418,14 +426,14 @@ void color_highlight_c(Buffer* buf) {
                     continue;
                 }
                 Color color = {0};
-                if (ch == '#') {
+                if (ch == '#' && comment_type == 0) {
                     color = PREPROCESSOR;
                     preprocessor_line = true;
-                } else if (ch == '/' && j < line_length-1 && buf->content[line.start + j + 1] == '/') {
+                } else if (ch == '/' && j < line_length-1 && buf->content[line.start + j + 1] == '/' && comment_type == 0) {
                     Token token = {i, j, line_length, COMMENT};
                     da_push(buf->tokens, token);
                     j = line_length;
-                } else if (ch == '/' && j < line_length-1 && buf->content[line.start + j + 1] == '*') {
+                } else if (ch == '/' && j < line_length-1 && buf->content[line.start + j + 1] == '*' && comment_type == 0) {
                     comment = true;
                     for (int c = j; c < line_length; c++) {
                         if (buf->content[line.start + c] == '*' && j < line_length-1 && buf->content[line.start + c + 1] == '/') {
@@ -442,13 +450,26 @@ void color_highlight_c(Buffer* buf) {
                         j = line_length;
                     }
                     continue;
-                } else color = DEFAULT;
+                } else if (comment_type == 1 && ch == '#') {
+                    Token token = {i, j, line_length, COMMENT};
+                    da_push(buf->tokens, token);
+                    j = line_length;
+                }
+                else color = DEFAULT;
                 Token token = {i, j, j+1, color};
                 da_push(buf->tokens, token);
                 j++;
             }
         }
     }
+}
+
+void color_highlight_c(Buffer* buf) {
+    color_highlight_basic(buf, keywords, keywords_length, 0);
+}
+
+void color_highlight_py(Buffer* buf) {
+    color_highlight_basic(buf, py_keywords, py_keywords_length, 1);
 }
 
 void color_highlight_openfile(Buffer* buf) {
@@ -512,6 +533,8 @@ void color_highlight(Buffer* buf) {
     char* utf8_string = LoadUTF8(buf->filename, buf->filenamel);
     if (endswith(utf8_string, ".c") || endswith(utf8_string, ".h"))
         color_highlight_c(buf);
+    else if (endswith(utf8_string, ".py") || endswith(utf8_string, ".py"))
+        color_highlight_py(buf);
     else if (strcmp(utf8_string, "Open a file...") == 0 || strcmp(utf8_string, "Save a file...") == 0)
         color_highlight_openfile(buf);
     else if (endswith(utf8_string, "COMMIT_EDITMSG"))
