@@ -33,7 +33,6 @@ pros:
 
 cons:
 - tabs (\t) dont work (show up as 1 symbol)
-- no unicode support (content is just big char dynamic array)
 - some more idk
 
 ## thanks to
