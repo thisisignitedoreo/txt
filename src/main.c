@@ -143,6 +143,13 @@ void print_lines(Line* lines) {
     printf("}\n");
 }
 
+void print_content(int* content) {
+    char* ucontent = LoadUTF8(content, da_length(content));
+    for (size_t i = 0; i < strlen(ucontent); ++i) putc(ucontent[i], stdout);
+    putc('\n', stdout);
+    UnloadUTF8(ucontent);
+}
+
 float lerp(float a, float b, float t) {
     return a + ((b - a) * t);
 }
@@ -285,9 +292,11 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
             int str[cc];
             memcpy(str, buf->content + line.start, cc*sizeof(int));
             char* utf8_string = LoadUTF8(str, cc);
-            Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+            size_t size = 0;
+            if (cc == 0) size = 0;
+            else size = MeasureTextEx(font, utf8_string, font_size, 0).x;
             UnloadUTF8(utf8_string);
-            DrawRectangle(size.x + pad + line_size + posx, y, 2, font_size, FOREGROUND);
+            DrawRectangle(size + pad + line_size + posx, y, 2, font_size, FOREGROUND);
         }
     
         y += font_size + inner_pad;
@@ -608,9 +617,10 @@ void init_open_buffer(Buffer* buf) {
     for (size_t i = 0; i < files.count; ++i) {
         if (DirectoryExists(files.paths[i])) {
             const char* str = basename(files.paths[i]);
-            size_t length = strlen(str);
-            for (size_t j = 0; j < length; ++j) {
-                da_push(buf->content, str[j]);
+            int fl;
+            int* fs = LoadCodepoints(str, &fl);
+            for (size_t j = 0; j < fl; ++j) {
+                da_push(buf->content, fs[j]);
             }
             da_push(buf->content, '/');
             da_push(buf->content, '\n');
@@ -620,9 +630,10 @@ void init_open_buffer(Buffer* buf) {
     for (size_t i = 0; i < files.count; ++i) {
         if (!DirectoryExists(files.paths[i])) {
             const char* str = basename(files.paths[i]);
-            size_t length = strlen(str);
-            for (size_t j = 0; j < length; ++j) {
-                da_push(buf->content, str[j]);
+            int fl;
+            int* fs = LoadCodepoints(str, &fl);
+            for (size_t j = 0; j < fl; ++j) {
+                da_push(buf->content, fs[j]);
             }
             da_push(buf->content, '\n');
         }
