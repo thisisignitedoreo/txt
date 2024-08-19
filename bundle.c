@@ -39,8 +39,8 @@ char *tovnamel(char *str) {
 
 void print_usage() {
   printf(
-      "Usage: ./bundle <font.ttf> [<some-more-fonts.ttf>] [...] 2> src/font.c\n"
-      "  -h, --help      Show this help message and exit.\n");
+      "usage: ./bundle <file> [<another-file>] [...] 2> src/files.c\n"
+      "  -h, --help      show this help message and exit\n");
 }
 
 int main(int argc, char **argv) {
@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
 
   int files = argc - 1;
   if (files == 0) {
-    fprintf(stderr, "Error: No files specified.\n");
+    fprintf(stderr, "error: no files specified\n");
     print_usage();
     return 1;
   }
@@ -61,10 +61,10 @@ int main(int argc, char **argv) {
     char *file = argv[i + 1];
     char *vname = tovname(argv[i + 1]);
     char *vnamel = tovnamel(argv[i + 1]);
-    printf("Bundling %s as\n\t%s and %s\n", file, vname, vnamel);
+    printf("bundling %s as\n\t%s and %s\n", file, vname, vnamel);
     FILE *f = fopen(file, "rb");
     if (f == NULL) {
-      fprintf(stderr, "Error: Could not open file %s\n", file);
+      fprintf(stderr, "error: could not open file %s\n", file);
       free(vname);
       free(vnamel);
       continue;

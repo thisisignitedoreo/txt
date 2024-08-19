@@ -12,15 +12,14 @@ _Empty buffer with "Hello world" in txt_
 _txt's src opened in itself_
 
 ## quickstart
-to compile run `$ ./build.sh` or `$ ./build.sh windows`<br/>
+to compile run `$ make linux` or `$ make windows`<br/>
 _compilation on windows isn't supported, sorry_
-Or the usual `make` command should do the same
 
-to compile bundler run `$ ./build_bundler.sh`<br/>
-to use bundler run `$ ./bundle <font.ttf> [<some-more-fonts.ttf> <more.ttf>...] 2> src/font.c`
+to compile bundler run `$ make bundle`<br/>
+to use bundler run `$ ./bundle <file> [<another-file>] [...] 2> src/file.c`
 
-for linux building install clang or gcc. for windows building install the mingw-w64 compiling set.
-Compiling for mac (Darwin) using XCode should work since it is a BSD/Unix system
+for linux building install clang or gcc. for windows building install the mingw-w64 compiling set.<br/>
+compiling for mac (darwin) using XCode should work since it is a posix system
 
 also, you can download a build under releases
 
