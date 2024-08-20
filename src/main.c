@@ -19,7 +19,7 @@
 #define NUMBER       (Color){181, 219, 255, 255}
 #define KWORD        (Color){252, 237, 162, 255}
 #define STRING       (Color){252, 167, 162, 255}
-#define ERROR        (Color){255, 162, 162, 255}
+#define ERROR        (Color){255, 0,   0,   255}
 #define PREPROCESSOR (Color){218, 181, 255, 255}
 
 typedef struct {
