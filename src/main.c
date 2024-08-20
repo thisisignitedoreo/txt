@@ -186,7 +186,9 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
             int str[line.end-line.start];
             memcpy(str, buf->content + line.start, (line.end-line.start)*sizeof(int));
             char* utf8_string = LoadUTF8(str, line.end - line.start);
-            Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+            Vector2 size = {0};
+            if (line.end-line.start == 0) size = (Vector2) {.x = 0, .y = font_size};
+            else size = MeasureTextEx(font, utf8_string, font_size, 0);
             UnloadUTF8(utf8_string);
             DrawRectangle(pad + line_size + posx, y, size.x, size.y, FAINT_FG);
         }
@@ -196,13 +198,17 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[sc-cc], strl = sc-cc;
                 memcpy(str, buf->content + buf->cursor, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (sc-cc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 int sstr[cc], sstrl = cc;
                 memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
                 utf8_string = LoadUTF8(sstr, sstrl);
-                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 ssize = {0};
+                if (cc == 0) ssize = (Vector2) {.x = 0, .y = font_size};
+                else ssize = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
 
                 DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -210,13 +216,17 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[cc], strl = cc;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (cc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 int sstr[(line.end-line.start)-cc], sstrl = (line.end-line.start)-cc;
                 memcpy(sstr, buf->content + line.start + cc, sstrl*sizeof(int));
                 utf8_string = LoadUTF8(sstr, sstrl);
-                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 ssize = {0};
+                if (line.end-line.start-cc == 0) ssize = (Vector2) {.x = 0, .y = font_size};
+                else ssize = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
 
                 DrawRectangle(pad + line_size + posx + size.x, y, ssize.x, ssize.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -224,7 +234,9 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[sc], strl = sc;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (sc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -232,7 +244,9 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[line.end-line.start], strl = line.end-line.start;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (line.end-line.start == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -242,13 +256,17 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[cc-sc], strl = cc-sc;
                 memcpy(str, buf->content + buf->selection_origin, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (cc-sc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 int sstr[sc], sstrl = sc;
                 memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
                 utf8_string = LoadUTF8(sstr, sstrl);
-                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 ssize = {0};
+                if (sc == 0) ssize = (Vector2) {.x = 0, .y = font_size};
+                else ssize = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
 
                 DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -256,7 +274,9 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[cc], strl = cc;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (cc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -264,13 +284,17 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[(line.end-line.start)-sc], strl = (line.end-line.start)-sc;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (line.end-line.start-sc == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 int sstr[sc], sstrl = sc;
                 memcpy(sstr, buf->content + line.start, sstrl*sizeof(int));
                 utf8_string = LoadUTF8(sstr, sstrl);
-                Vector2 ssize = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 ssize = {0};
+                if (sc == 0) ssize = (Vector2) {.x = 0, .y = font_size};
+                else ssize = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 DrawRectangle(pad + line_size + posx + ssize.x, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
@@ -278,7 +302,9 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 int str[line.end-line.start], strl = line.end-line.start;
                 memcpy(str, buf->content + line.start, strl*sizeof(int));
                 char* utf8_string = LoadUTF8(str, strl);
-                Vector2 size = MeasureTextEx(font, utf8_string, font_size, 0);
+                Vector2 size = {0};
+                if (line.end-line.start == 0) size = (Vector2) {.x = 0, .y = font_size};
+                else size = MeasureTextEx(font, utf8_string, font_size, 0);
                 UnloadUTF8(utf8_string);
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
