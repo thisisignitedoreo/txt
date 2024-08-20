@@ -44,6 +44,8 @@ typedef struct {
     bool changed;
     bool readonly;
     int selection_origin;
+    int* search_buffer;
+    int is_searching;
 } Buffer;
 
 Buffer* buffers = 0;
@@ -182,7 +184,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
         Vector2 lsize = MeasureTextEx(font, lstr, font_size, 0);
         DrawTextEx(font, lstr, (Vector2) {pad + posx - lsize.x + line_size, y}, font_size, 0, MIDDLEGROUND);
 
-        if (cl == i && select_line) {
+        if (cl == i && select_line && buf->is_searching == 0) {
             int str[line.end-line.start];
             memcpy(str, buf->content + line.start, (line.end-line.start)*sizeof(int));
             char* utf8_string = LoadUTF8(str, line.end - line.start);
@@ -193,7 +195,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
             DrawRectangle(pad + line_size + posx, y, size.x, size.y, FAINT_FG);
         }
 
-        if (selection && buf->selection_origin > (int) buf->cursor) {
+        if (selection && buf->selection_origin > (int) buf->cursor && buf->is_searching == 0) {
             if (cl == i && cl == sl) {
                 int str[sc-cc], strl = sc-cc;
                 memcpy(str, buf->content + buf->cursor, strl*sizeof(int));
@@ -251,7 +253,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
                 
                 DrawRectangle(pad + line_size + posx, y, size.x, size.y, select_line?MIDDLEGROUND:FAINT_FG);
             }
-        } else if (selection && buf->selection_origin < (int) buf->cursor) {
+        } else if (selection && buf->selection_origin < (int) buf->cursor && buf->is_searching == 0) {
             if (cl == i && cl == sl) {
                 int str[cc-sc], strl = cc-sc;
                 memcpy(str, buf->content + buf->selection_origin, strl*sizeof(int));
@@ -314,7 +316,7 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
         draw_text(buf->content + line.start,
                   font, pad+line_size, y, font_size, posx, i, buf->tokens);
 
-        if (cl == i && (!selection || buf->cursor == (size_t) buf->selection_origin)) {
+        if (cl == i && (!selection || buf->cursor == (size_t) buf->selection_origin) && buf->is_searching == 0) {
             int str[cc];
             memcpy(str, buf->content + line.start, cc*sizeof(int));
             char* utf8_string = LoadUTF8(str, cc);
@@ -588,6 +590,7 @@ void init_help_buffer(Buffer* buf) {
     buf->lines = da_new(Line);
     buf->content = da_new(int);
     buf->tokens = da_new(Token);
+    buf->search_buffer = da_new(int);
     buf->selection_origin = -1;
     int ustrl = 0;
     int* ustr = LoadCodepoints("Help Text", &ustrl);
@@ -619,6 +622,7 @@ void init_buf(Buffer* buf) {
     buf->lines = da_new(Line);
     buf->content = da_new(int);
     buf->tokens = da_new(Token);
+    buf->search_buffer = da_new(int);
     update_newlines(buf);
     color_highlight(buf);
 }
@@ -628,6 +632,7 @@ void deinit_buf(Buffer* buf) {
     da_free(buf->lines);
     da_free(buf->content);
     da_free(buf->tokens);
+    da_free(buf->search_buffer);
     buf->changed = false;
     if (buf->filename != 0) free(buf->filename);
 }
@@ -642,6 +647,7 @@ void init_open_buffer(Buffer* buf) {
     buf->lines = da_new(Line);
     buf->content = da_new(int);
     buf->tokens = da_new(Token);
+    buf->search_buffer = da_new(int);
     int ustrl = 0;
     int* ustr = LoadCodepoints("Open a file...", &ustrl);
     buf->filename = ustr;
@@ -771,102 +777,65 @@ void remove_selection(Buffer* buf) {
     buf->cursor = start;
 }
 
-void update_buf_ro(Buffer* buf) {
-    if (IsKeyDown(KEY_LEFT_SHIFT)) {
-        if (buf->selection_origin == -1) buf->selection_origin = buf->cursor;
-    } else if (key_pressed(KEY_LEFT)) {
-        if (buf->cursor > 0) {
-            buf->cursor -= 1;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    } else if (key_pressed(KEY_RIGHT)) {
-        if (buf->cursor < da_length(buf->content)) {
-            buf->cursor += 1;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    } else if (key_pressed(KEY_UP)) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l > 0) {
-            Line next_line = buf->lines[l - 1];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    } else if (key_pressed(KEY_DOWN)) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l < da_length(buf->lines)-1) {
-            Line next_line = buf->lines[l + 1];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    }
+#define SEARCHING_NONE 0
+#define SEARCHING_SEARCH 1
+#define SEARCHING_GOTO 2
 
-    size_t mouse_wheeled = 3;
-    
-    float wheel = GetMouseWheelMove();
-    if (wheel > 0) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l > mouse_wheeled-1) {
-            Line next_line = buf->lines[l - mouse_wheeled];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        } else {
-            buf->cursor = buf->lines[0].start;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    } else if (wheel < 0) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l < da_length(buf->lines)-mouse_wheeled) {
-            Line next_line = buf->lines[l + mouse_wheeled];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        } else {
-            buf->cursor = buf->lines[da_length(buf->lines)-1].end;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    }
-
-    update_newlines(buf);
-    color_highlight(buf);
-}
-
-void update_buf(Buffer* buf, bool change_lines) {
+void update_buf_ex(Buffer* buf, bool change_lines, bool read_only) {
     int key_char = GetCharPressed();
-    while (key_char != 0) {
+    while (key_char != 0 && !read_only) {
         if (change_lines) {
             if (key_char == '/') {
                 key_char = GetCharPressed();
                 continue;
             }
         }
-        if (buf->selection_origin != -1) remove_selection(buf);
-        push_at_cursor(buf, key_char);
-        buf->changed = true;
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
+        if (buf->is_searching != 0) {
+            da_push(buf->search_buffer, key_char);
+        } else {
+            if (buf->selection_origin != -1) remove_selection(buf);
+            push_at_cursor(buf, key_char);
+            buf->changed = true;
+            if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
+        }
         key_char = GetCharPressed();
+    }
+
+    if (buf->is_searching != SEARCHING_NONE) {
+        if (key_pressed(KEY_BACKSPACE) && da_length(buf->search_buffer) > 0) {
+            da_pop(buf->search_buffer, 0);
+        }
+        if (key_pressed(KEY_ENTER)) {
+            if (buf->is_searching == SEARCHING_GOTO) {
+                char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
+                char* strp;
+                long line = strtol(ustr, &strp, 0);
+                if (*strp == '\0') {
+                    if (line <= 0) line = 1;
+                    else if (line > da_length(buf->lines)) line = da_length(buf->lines);
+                    buf->cursor = buf->lines[line-1].start;
+                    buf->selection_origin = -1;
+                }
+                buf->is_searching = SEARCHING_NONE;
+                da_free(buf->search_buffer);
+                buf->search_buffer = da_new(int);
+                UnloadUTF8(ustr);
+            }
+        }
+
+        return;
+    }
+
+    if (IsKeyDown(KEY_LEFT_CONTROL) && key_pressed(KEY_G)) {
+        buf->is_searching = SEARCHING_GOTO;
+        return;
     }
 
     if (IsKeyDown(KEY_LEFT_SHIFT)) {
         if (buf->selection_origin == -1) buf->selection_origin = buf->cursor;
     }
-    if (key_pressed(KEY_ENTER) && !change_lines) {
+
+    if (key_pressed(KEY_ENTER) && !change_lines && !read_only) {
         if (buf->selection_origin != -1) remove_selection(buf);
         size_t l, c;
         buf_get_cursor(buf, &l, &c);
@@ -879,7 +848,7 @@ void update_buf(Buffer* buf, bool change_lines) {
         push_at_cursor(buf, '\n');
         for (size_t i = 0; i < spaces; ++i) push_at_cursor(buf, ' ');
         buf->changed = true;
-    } else if (key_pressed(KEY_DELETE)) {
+    } else if (key_pressed(KEY_DELETE) && !read_only) {
         if (buf->selection_origin != -1) remove_selection(buf);
         else if (buf->cursor < da_length(buf->content) && (change_lines ? buf->content[buf->cursor] != '\n' : true)) {
             int temp[da_length(buf->content) - buf->cursor - 1];
@@ -889,7 +858,7 @@ void update_buf(Buffer* buf, bool change_lines) {
             buf->changed = true;
             if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
         }
-    } else if (key_pressed(KEY_BACKSPACE)) {
+    } else if (key_pressed(KEY_BACKSPACE) && !read_only) {
         if (buf->selection_origin != -1) remove_selection(buf);
         else if (buf->cursor > 0 && (change_lines ? buf->content[buf->cursor-1] != '\n' : true)) {
             int temp[da_length(buf->content) - buf->cursor];
@@ -900,7 +869,7 @@ void update_buf(Buffer* buf, bool change_lines) {
             buf->changed = true;
             if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
         }
-    } else if (key_pressed(KEY_TAB)) {
+    } else if (key_pressed(KEY_TAB) && !read_only) {
         if (buf->selection_origin != -1) remove_selection(buf);
         push_at_cursor(buf, ' ');
         push_at_cursor(buf, ' ');
@@ -983,6 +952,14 @@ void update_buf(Buffer* buf, bool change_lines) {
     color_highlight(buf);
 }
 
+void update_buf_ro(Buffer* buf) {
+    update_buf_ex(buf, false, true);
+}
+
+void update_buf(Buffer* buf, bool change_lines) {
+    update_buf_ex(buf, change_lines, false);
+}
+
 void draw_statusbar(Buffer* buf, Font font, size_t font_size) {
     int pad = 8;
 
@@ -999,8 +976,17 @@ void draw_statusbar(Buffer* buf, Font font, size_t font_size) {
         str = LoadUTF8(buf->filename, buf->filenamel);
     }
 
-    const char* lstatus = TextFormat("%s%s", buf->filename == 0 ? "<new file>" : basename(str), buf->changed ? "*" : "");
+    const char* lstatus;
+    if (buf->is_searching == SEARCHING_NONE) lstatus = TextFormat("%s%s", buf->filename == 0 ? "<new file>" : basename(str), buf->changed ? "*" : "");
+    else if (buf->is_searching == SEARCHING_GOTO) {
+        char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
+        lstatus = TextFormat("line: %s", ustr);
+        UnloadUTF8(ustr);
+    }
     Vector2 lssize = MeasureTextEx(font, lstatus, font_size, 0);
+    if (buf->is_searching == SEARCHING_GOTO) {
+        DrawRectangle(pad + lssize.x, wh-lssize.y-pad, 2, lssize.y, FOREGROUND);
+    }
     DrawTextEx(font, lstatus, (Vector2) {pad, wh - lssize.y - pad}, font_size, 0, FOREGROUND);
     
     const char* rstatus = TextFormat("%ld:%ld", l+1, c+1);
@@ -1016,6 +1002,7 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     FILE* f = fopen(fname, "r");
     buf->lines = da_new(Line);
     buf->content = da_new(int);
+    buf->search_buffer = da_new(int);
     buf->tokens = da_new(Token);
     size_t size = GetFileLength(fname);
     char* file = malloc(size+1);
@@ -1172,10 +1159,9 @@ int main(int argc, char** argv) {
                     update_newlines(&buf);
                     color_highlight(&buf);
                 }
-            } else {
-                if (buf.readonly) update_buf_ro(&buf);
-                else update_buf(&buf, false);
             }
+            if (buf.readonly) update_buf_ro(&buf);
+            else update_buf(&buf, false);
         } else if (state == STATE_OPEN) {
             if (key_pressed(KEY_ESCAPE)) {
                 state = STATE_TEXT;
@@ -1275,10 +1261,10 @@ int main(int argc, char** argv) {
                     color_highlight(&save_buffer);
                 }
                 update_buf(&save_buffer, true);
-            } else update_buf_ro(&save_buffer);
+            } update_buf_ro(&save_buffer);
         } else if (state == STATE_HELP) {
             if (key_pressed(KEY_ESCAPE)) state = STATE_TEXT;
-            else update_buf_ro(&help_buffer);
+            update_buf_ro(&help_buffer);
         }
 
         cp += lines_size + pad;
@@ -1323,4 +1309,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
