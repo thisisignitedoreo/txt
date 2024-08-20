@@ -38,8 +38,7 @@ pros:
 - c&python syntax highlighting
 
 cons:
-- tabs (\t) dont work (show up as 1 symbol)
-- some more idk
+- idk
 
 ## thanks to
 - creators of font Victor Mono, as it is used as default font here

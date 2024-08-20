@@ -1025,7 +1025,7 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     int* uf = LoadCodepoints(file, &fs);
     free(file);
     for (int i = 0; i < fs; ++i) {
-        if (uf == '\t') {
+        if (uf[i] == '\t') {
             da_push(buf->content, ' ');
             da_push(buf->content, ' ');
             da_push(buf->content, ' ');
