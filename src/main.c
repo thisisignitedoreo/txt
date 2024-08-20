@@ -809,7 +809,7 @@ void update_buf_ex(Buffer* buf, bool change_lines, bool read_only) {
             if (buf->is_searching == SEARCHING_GOTO) {
                 char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
                 char* strp;
-                long line = strtol(ustr, &strp, 0);
+                size_t line = strtoull(ustr, &strp, 0);
                 if (*strp == '\0') {
                     if (line <= 0) line = 1;
                     else if (line > da_length(buf->lines)) line = da_length(buf->lines);
@@ -1044,7 +1044,7 @@ Font load_font(size_t font_size) {
 int main(int argc, char** argv) {
     Buffer buf = {0};
     if (argc == 2) {
-        if (FileExists(argv[1])) {
+        if (FileExists(argv[1]) && !DirectoryExists(argv[1])) {
             size_t flen = strlen(argv[1]);
             char* fname = malloc(flen+1);
             fname[flen] = 0;
