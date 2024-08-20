@@ -868,7 +868,16 @@ void update_buf(Buffer* buf, bool change_lines) {
     }
     if (key_pressed(KEY_ENTER) && !change_lines) {
         if (buf->selection_origin != -1) remove_selection(buf);
+        size_t l, c;
+        buf_get_cursor(buf, &l, &c);
+        Line line = buf->lines[l];
+        size_t spaces = 0;
+        for (size_t i = line.start; i < line.end; ++i) {
+            if (buf->content[i] == ' ') spaces++;
+            else break;
+        }
         push_at_cursor(buf, '\n');
+        for (size_t i = 0; i < spaces; ++i) push_at_cursor(buf, ' ');
         buf->changed = true;
     } else if (key_pressed(KEY_DELETE)) {
         if (buf->selection_origin != -1) remove_selection(buf);
@@ -1016,7 +1025,12 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     int* uf = LoadCodepoints(file, &fs);
     free(file);
     for (int i = 0; i < fs; ++i) {
-        da_push(buf->content, uf[i]);
+        if (uf == '\t') {
+            da_push(buf->content, ' ');
+            da_push(buf->content, ' ');
+            da_push(buf->content, ' ');
+            da_push(buf->content, ' ');
+        } else da_push(buf->content, uf[i]);
     }
     if (fs != 0) UnloadCodepoints(uf);
     fclose(f);
