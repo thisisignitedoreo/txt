@@ -844,6 +844,11 @@ void update_buf_ex(Buffer* buf, bool change_lines, bool read_only) {
         if (key_pressed(KEY_BACKSPACE) && da_length(buf->search_buffer) > 0) {
             da_pop(buf->search_buffer, 0);
         }
+        if (key_pressed(KEY_ESCAPE)) {
+            buf->is_searching = SEARCHING_NONE;
+            da_free(buf->search_buffer);
+            buf->search_buffer = da_new(int);
+        }
         if (key_pressed(KEY_ENTER)) {
             if (buf->is_searching == SEARCHING_GOTO) {
                 char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
