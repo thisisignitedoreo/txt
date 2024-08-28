@@ -1204,16 +1204,20 @@ int main(int argc, char** argv) {
                     int utfl;
                     int* utfs = LoadCodepoints(cwd, &utfl);
                     int strl = cwdl + 1 + line.end - line.start;
-                    int* str = malloc(strl*sizeof(int));
-                    memcpy(str + utfl + 1, save_buffer.content + line.start, sizeof(int)*(line.end-line.start));
-                    memcpy(str, utfs, utfl*sizeof(int));
-                    str[utfl] = '/';
-                    
-                    free(buf.filename);
-                    buf.filename = str;
-                    buf.filenamel = strl;
-                    save_file(&buf);
-                    state = STATE_TEXT;
+                    if (line.end - line.start == 0) {
+                        UnloadCodepoints(utfs);
+                    } else {
+                        int* str = malloc(strl*sizeof(int));
+                        memcpy(str + utfl + 1, save_buffer.content + line.start, sizeof(int)*(line.end-line.start));
+                        memcpy(str, utfs, utfl*sizeof(int));
+                        str[utfl] = '/';
+                        
+                        free(buf.filename);
+                        buf.filename = str;
+                        buf.filenamel = strl;
+                        save_file(&buf);
+                        state = STATE_TEXT;
+                    }
                 } else if (l > 1) {
                     if (l == 2) {
                         ChangeDirectory("..");
