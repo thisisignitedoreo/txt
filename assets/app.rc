@@ -7,13 +7,13 @@ BEGIN
   BEGIN
     BLOCK "040904E4"
     BEGIN
-      VALUE "CompanyName", "My Company Name"
-      VALUE "FileDescription", "My excellent application"
+      VALUE "CompanyName", "aciddev_"
+      VALUE "FileDescription", "from-scratch text editor"
       VALUE "FileVersion", "1.0"
-      VALUE "InternalName", "my_app"
-      VALUE "LegalCopyright", "My Name"
-      VALUE "OriginalFilename", "my_app.exe"
-      VALUE "ProductName", "My App"
+      VALUE "InternalName", "txt"
+      VALUE "LegalCopyright", "copyleft lol"
+      VALUE "OriginalFilename", "txt.exe"
+      VALUE "ProductName", "txt"
       VALUE "ProductVersion", "1.0"
     END
   END
