@@ -762,7 +762,6 @@ void push_cstr_at_cursor(Buffer* buf, char* string) {
 }
 
 void save_file(Buffer* buf) {
-    buf->changed = false;
     char* utf8_string = LoadUTF8(buf->content, da_length(buf->content));
     char* ufilename = LoadUTF8(buf->filename, buf->filenamel);
     FILE* f = fopen(ufilename, "w");
@@ -775,6 +774,7 @@ void save_file(Buffer* buf) {
     UnloadUTF8(utf8_string);
     fclose(f);
     UnloadUTF8(ufilename);
+    buf->changed = false;
 }
 
 size_t key_presses[512] = {0};
