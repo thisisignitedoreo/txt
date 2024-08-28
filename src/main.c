@@ -14,6 +14,11 @@
 #define MIDDLEGROUND (Color){150, 150, 150, 255}
 #define FAINT_FG     (Color){50,  50,  50,  255}
 
+#define BACKGROUND_A(x)   (Color){18,  18,  18,  x}
+#define FOREGROUND_A(x)   (Color){255, 255, 255, x}
+#define MIDDLEGROUND_A(x) (Color){150, 150, 150, x}
+#define FAINT_FG_A(x)     (Color){50,  50,  50,  x}
+
 #define DEFAULT      (Color){255, 255, 255, 255}
 #define COMMENT      (Color){190, 255, 181, 255}
 #define NUMBER       (Color){181, 219, 255, 255}
@@ -46,6 +51,7 @@ typedef struct {
     int selection_origin;
     int* search_buffer;
     int is_searching;
+    const char* error;
 } Buffer;
 
 Buffer* buffers = 0;
@@ -156,6 +162,10 @@ float lerp(float a, float b, float t) {
     return a + ((b - a) * t);
 }
 
+float ilerp(float a, float b, float v) {
+    return (v - a) / (b - a);
+}
+
 Color* lerp_color(Color c1, Color c2, float t) {
     Color* a = malloc(sizeof(Color));
     a->r = lerp(c1.r, c2.r, t);
@@ -165,17 +175,19 @@ Color* lerp_color(Color c1, Color c2, float t) {
     return a;
 }
 
+#define ERROR_LENGTH (5*60)
+#define ERROR_FADE (1*60)
+size_t error_time = 0;
+
 void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int line_size, int pad, bool select_line) {
     int inner_pad = 2;
     int y = pad - posy * font_size - posy * inner_pad;
-    int drawn_y = y;
     size_t cl, cc, sl, sc;
     bool selection = buf_get_selection_cursor(buf, &sl, &sc);
     buf_get_cursor(buf, &cl, &cc);
     for (size_t i = 0; i < da_length(buf->lines); ++i) {
-        if (drawn_y < -font_size) {
+        if (y < -font_size) {
             y += font_size + inner_pad;
-            drawn_y += font_size + inner_pad;
             continue;
         }
         Line line = buf->lines[i];
@@ -328,8 +340,28 @@ void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int 
         }
     
         y += font_size + inner_pad;
-        drawn_y += font_size + inner_pad;
-        if (drawn_y > GetScreenHeight()) break;
+        if (y > GetScreenHeight()) break;
+    }
+
+    if (error_time == 1) { buf->error = NULL; error_time = 0; }
+    if (buf->error != NULL && error_time == 0) error_time = ERROR_LENGTH + ERROR_FADE;
+    if (buf->error != NULL) {
+        float alpha = 0;
+        if (error_time < ERROR_FADE) alpha = error_time / (float) ERROR_FADE;
+        else alpha = 1.0f;
+
+        long p = 8;
+        Vector2 error_size = MeasureTextEx(font, buf->error, font_size, 0);
+        Rectangle rec = {
+            .x = GetScreenWidth()-error_size.x-p*3,
+            .y = p,
+            .width = error_size.x + p*2,
+            .height = error_size.y + p*2,
+        };
+        DrawRectangleRounded(rec, 0.6, 5, FAINT_FG_A(alpha*255));
+        DrawTextEx(font, buf->error, (Vector2) {rec.x+p, rec.y+p}, font_size, 0, FOREGROUND_A(alpha*255));
+
+        error_time--;
     }
 }
 
@@ -733,6 +765,10 @@ void save_file(Buffer* buf) {
     char* utf8_string = LoadUTF8(buf->content, da_length(buf->content));
     char* ufilename = LoadUTF8(buf->filename, buf->filenamel);
     FILE* f = fopen(ufilename, "w");
+    if (f == NULL) {
+        buf->error = strerror(errno);
+        return;
+    }
     size_t utf8l = strlen(utf8_string);
     fwrite(utf8_string, 1, utf8l, f);
     UnloadUTF8(utf8_string);
@@ -999,11 +1035,15 @@ void init_buf_from_file(Buffer* buf, char* fname) {
     buf->filename = LoadCodepoints(fname, &ufnl);
     buf->filenamel = ufnl;
     buf->selection_origin = -1;
-    FILE* f = fopen(fname, "r");
     buf->lines = da_new(Line);
     buf->content = da_new(int);
     buf->search_buffer = da_new(int);
     buf->tokens = da_new(Token);
+    FILE* f = fopen(fname, "r");
+    if (f == NULL) {
+        buf->error = strerror(errno);
+        return;
+    }
     size_t size = GetFileLength(fname);
     char* file = malloc(size+1);
     file[size] = '\0';

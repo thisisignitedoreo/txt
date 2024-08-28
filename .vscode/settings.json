@@ -1,0 +1,10 @@
+{
+    "files.associations": {
+        "*.html": "html",
+        "*.nut": "squirrel",
+        "*.pnut": "squirrel",
+        "*.chco": "dart",
+        "*.ruleset": "json",
+        "raylib.h": "c"
+    }
+}
