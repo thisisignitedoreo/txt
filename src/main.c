@@ -1,6 +1,7 @@
 
 #include "raylib.h"
 #include <libgen.h>
+#include <errno.h>
 #include <ctype.h>
 #include <stddef.h>
 #include <stdio.h>
