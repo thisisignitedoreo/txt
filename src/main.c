@@ -180,8 +180,7 @@ Color* lerp_color(Color c1, Color c2, float t) {
 #define ERROR_FADE (1*60)
 size_t error_time = 0;
 
-void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int line_size, int pad, bool select_line) {
-    int inner_pad = 2;
+void draw_buffer(Buffer* buf, Font font, int font_size, int posy, int posx, int line_size, int pad, bool select_line, int inner_pad) {
     int y = pad - posy * font_size - posy * inner_pad;
     size_t cl, cc, sl, sc;
     bool selection = buf_get_selection_cursor(buf, &sl, &sc);
@@ -1141,7 +1140,7 @@ int main(int argc, char** argv) {
     int font_size = 24;
     Font font = load_font(font_size);
         
-    int pad = 8, pos = 0, posx = 0, lines_size = 80;
+    int pad = 8, inner_pad = 2, pos = 0, posx = 0, lines_size = 80;
 
     SetTargetFPS(60);
     while (!WindowShouldClose()) {
@@ -1150,6 +1149,59 @@ int main(int argc, char** argv) {
         Buffer cursorbuf = state == STATE_TEXT ? buf : state == STATE_OPEN ? open_buffer : state == STATE_SAVE ? save_buffer : help_buffer;
         buf_get_cursor(&cursorbuf, &l, &c);
         buf_get_cursor_pos(&cursorbuf, font, font_size, &lp, &cp);
+
+        Vector2 mouse_pos = GetMousePosition();
+        if (mouse_pos.y >= GetScreenHeight() - font_size - pad*2) SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+        else if (mouse_pos.x > lines_size) SetMouseCursor(MOUSE_CURSOR_IBEAM);
+        else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
+
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            int tx = mouse_pos.x - lines_size + posx;
+            if (tx > 0 && mouse_pos.y < GetScreenHeight() - font_size - pad*2) {
+                int ty = (mouse_pos.y + pos*(font_size+inner_pad) - pad) / (font_size+inner_pad);
+                if (ty < (int) da_length(buf.lines)) {
+                    Line line = buf.lines[ty];
+                    // buf.cursor = line.start;
+                    int str[line.end-line.start];
+                    memcpy(str, buf.content + line.start, sizeof(int)*(line.end-line.start));
+                    char* ustr = LoadUTF8(str, line.end-line.start);
+                    Vector2 str_size = MeasureTextEx(font, ustr, font_size, 0);
+                    UnloadUTF8(ustr);
+                    if (str_size.x < tx) buf.cursor = line.end;
+                    else {
+                        for (int i = line.end-line.start-1; i >= 0; --i) {
+                            ustr = LoadUTF8(str, i);
+                            str_size = MeasureTextEx(font, ustr, font_size, 0);
+                            UnloadUTF8(ustr);
+                            if (str_size.x < tx) { buf.cursor = i + line.start; break; }
+                        }
+                    }
+                }
+            }
+        } else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            buf.selection_origin = buf.cursor;
+            int tx = mouse_pos.x - lines_size + posx;
+            if (tx > 0 && mouse_pos.y < GetScreenHeight() - font_size - pad*2) {
+                int ty = (mouse_pos.y + pos*(font_size+inner_pad) - pad) / (font_size+inner_pad);
+                if (ty < (int) da_length(buf.lines)) {
+                    Line line = buf.lines[ty];
+                    int str[line.end-line.start];
+                    memcpy(str, buf.content + line.start, sizeof(int)*(line.end-line.start));
+                    char* ustr = LoadUTF8(str, line.end-line.start);
+                    Vector2 str_size = MeasureTextEx(font, ustr, font_size, 0);
+                    UnloadUTF8(ustr);
+                    if (str_size.x < tx) buf.selection_origin = line.end;
+                    else {
+                        for (int i = line.end-line.start-1; i >= 0; --i) {
+                            ustr = LoadUTF8(str, i);
+                            str_size = MeasureTextEx(font, ustr, font_size, 0);
+                            UnloadUTF8(ustr);
+                            if (str_size.x < tx) { buf.selection_origin = i + line.start; break; }
+                        }
+                    }
+                }
+            }
+        }
         
         if (IsKeyDown(KEY_LEFT_CONTROL)) {
             if (key_pressed(KEY_EQUAL) && font_size <= 64) {
@@ -1359,16 +1411,16 @@ int main(int argc, char** argv) {
             ClearBackground(BACKGROUND);
             if (debug) DrawFPS(10, 10);
             if (state == STATE_TEXT) {
-                draw_buffer(&buf, font, font_size, pos, posx, lines_size, pad, false);
+                draw_buffer(&buf, font, font_size, pos, posx, lines_size, pad, false, inner_pad);
                 draw_statusbar(&buf, font, font_size);
             } else if (state == STATE_OPEN) {
-                draw_buffer(&open_buffer, font, font_size, pos, posx, lines_size, pad, true);
+                draw_buffer(&open_buffer, font, font_size, pos, posx, lines_size, pad, true, inner_pad);
                 draw_statusbar(&open_buffer, font, font_size);
             } else if (state == STATE_SAVE) {
-                draw_buffer(&save_buffer, font, font_size, pos, posx, lines_size, pad, true);
+                draw_buffer(&save_buffer, font, font_size, pos, posx, lines_size, pad, true, inner_pad);
                 draw_statusbar(&save_buffer, font, font_size);
             } else if (state == STATE_HELP) {
-                draw_buffer(&help_buffer, font, font_size, pos, posx, lines_size, pad, false);
+                draw_buffer(&help_buffer, font, font_size, pos, posx, lines_size, pad, false, inner_pad);
                 draw_statusbar(&help_buffer, font, font_size);
             }
         EndDrawing();
