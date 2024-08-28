@@ -637,6 +637,8 @@ void init_help_buffer(Buffer* buf) {
                        "Ctrl-'+':     Increase font size\n"
                        "Ctrl-L:       Enable/Disable line counter\n"
                        "Hold Shift:   Create a selection\n"
+                       "Ctrl-G:       Goto a line\n"
+                       "Ctrl-F:       Find a string\n"
                        "Ctrl-C:       Copy a selection to system clipboard\n"
                        "Ctrl-X:       Copy a selection to system clipboard and remove\n"
                        "              it from a buffer\n"
@@ -857,6 +859,17 @@ void update_buf_ex(Buffer* buf, bool change_lines, bool read_only) {
                 da_free(buf->search_buffer);
                 buf->search_buffer = da_new(int);
                 UnloadUTF8(ustr);
+            } else if (buf->is_searching == SEARCHING_SEARCH) {
+                for (size_t i = buf->cursor; i < da_length(buf->content) - da_length(buf->search_buffer); ++i) {
+                    if (memcmp(buf->content + i, buf->search_buffer, da_length(buf->search_buffer)*sizeof(int)) == 0) {
+                        buf->cursor = i;
+                        buf->selection_origin = i + da_length(buf->search_buffer);
+                        break;
+                    }
+                }
+                buf->is_searching = SEARCHING_NONE;
+                da_free(buf->search_buffer);
+                buf->search_buffer = da_new(int);
             }
         }
 
@@ -865,6 +878,11 @@ void update_buf_ex(Buffer* buf, bool change_lines, bool read_only) {
 
     if (IsKeyDown(KEY_LEFT_CONTROL) && key_pressed(KEY_G)) {
         buf->is_searching = SEARCHING_GOTO;
+        return;
+    }
+
+    if (IsKeyDown(KEY_LEFT_CONTROL) && key_pressed(KEY_F)) {
+        buf->is_searching = SEARCHING_SEARCH;
         return;
     }
 
@@ -1019,9 +1037,13 @@ void draw_statusbar(Buffer* buf, Font font, size_t font_size) {
         char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
         lstatus = TextFormat("line: %s", ustr);
         UnloadUTF8(ustr);
+    } else if (buf->is_searching == SEARCHING_SEARCH) {
+        char* ustr = LoadUTF8(buf->search_buffer, da_length(buf->search_buffer));
+        lstatus = TextFormat("find: %s", ustr);
+        UnloadUTF8(ustr);
     }
     Vector2 lssize = MeasureTextEx(font, lstatus, font_size, 0);
-    if (buf->is_searching == SEARCHING_GOTO) {
+    if (buf->is_searching == SEARCHING_GOTO || buf->is_searching == SEARCHING_SEARCH) {
         DrawRectangle(pad + lssize.x, wh-lssize.y-pad, 2, lssize.y, FOREGROUND);
     }
     DrawTextEx(font, lstatus, (Vector2) {pad, wh - lssize.y - pad}, font_size, 0, FOREGROUND);
