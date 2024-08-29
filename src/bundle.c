@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libgen.h>
 
 char *tovname(char *str) {
   int length = strlen(str);
@@ -33,7 +34,7 @@ char *tovnamel(char *str) {
   for (int i = 0; i < LSTRL; ++i) {
     buf[length + 1 + i] = LSTR[i];
   }
-  buf[length + 2 + LSTRL] = '\0';
+  buf[length + 1 + LSTRL] = '\0';
   return buf;
 }
 
@@ -59,8 +60,9 @@ int main(int argc, char **argv) {
 
   for (int i = 0; i < files; ++i) {
     char *file = argv[i + 1];
-    char *vname = tovname(argv[i + 1]);
-    char *vnamel = tovnamel(argv[i + 1]);
+    char *fname = basename(argv[i + 1]);
+    char *vname = tovname(fname);
+    char *vnamel = tovnamel(fname);
     printf("bundling %s as\n\t%s and %s\n", file, vname, vnamel);
     FILE *f = fopen(file, "rb");
     if (f == NULL) {
