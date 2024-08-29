@@ -151,11 +151,9 @@ void load_config() {
     }
     int fsize = getsize(f);
     char conf[fsize+1];
-    printf("%d\n", fsize);
     conf[fsize] = '\0';
     fread(conf, 1, fsize, f);
     fclose(f);
-    printf("%s: %s", config_path, conf);
     int start = 0;
     for (int end = 0; end < fsize; end++) {
         if (conf[end] == '\n') {
@@ -191,8 +189,6 @@ void load_config() {
             int rn = atoi(r);
             int gn = atoi(g);
             int bn = atoi(b);
-
-            printf("%s\n", name);
 
             if (strncmp(name, "BACKGROUND", 16) == 0) BACKGROUND = (Color) {rn, gn, bn, 255};
             if (strncmp(name, "FOREGROUND", 16) == 0) FOREGROUND = (Color) {rn, gn, bn, 255};
