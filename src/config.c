@@ -76,7 +76,7 @@ void r_mkdir(const char *dir) {
 #include <sys/stat.h>
 
 void load_cfg_path() {
-    char* str = getenv("home");
+    char* str = getenv("HOME");
     memcpy(config_path, str, strlen(str));
     const char* suffix = "/.config/txt/config.txt";
     memcpy(config_path+strlen(str), suffix, 15);
