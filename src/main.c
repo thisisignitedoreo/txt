@@ -463,39 +463,6 @@ void update_buf(Buffer* buf, bool change_lines, bool read_only) {
         if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
     }
 
-    size_t mouse_wheeled = 3;
-    
-    float wheel = GetMouseWheelMove();
-    if (wheel > 0) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l > mouse_wheeled-1) {
-            Line next_line = buf->lines[l - mouse_wheeled];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        } else {
-            buf->cursor = buf->lines[0].start;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    } else if (wheel < 0) {
-        size_t l, c;
-        buf_get_cursor(buf, &l, &c);
-        if (l < da_length(buf->lines)-mouse_wheeled) {
-            Line next_line = buf->lines[l + mouse_wheeled];
-            if (next_line.end - next_line.start < c) {
-                buf->cursor = next_line.end;
-            } else {
-                buf->cursor = next_line.start + c;
-            }
-        } else {
-            buf->cursor = buf->lines[da_length(buf->lines)-1].end;
-        }
-        if (IsKeyUp(KEY_LEFT_SHIFT)) buf->selection_origin = -1;
-    }
-
     if (change_lines) buf->changed = false;
 
     update_newlines(buf);
@@ -585,7 +552,6 @@ int main(int argc, char** argv) {
     init_open_buffer(&open_buffer);
     init_save_buffer(&save_buffer);
     init_help_buffer(&help_buffer);
-
     int font_size = 24;
     Font font = load_font(font_size);
 
