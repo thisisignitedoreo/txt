@@ -1156,12 +1156,12 @@ int main(int argc, char** argv) {
         else SetMouseCursor(MOUSE_CURSOR_DEFAULT);
 
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
-            int tx = mouse_pos.x - lines_size + posx;
+            int tx = mouse_pos.x - lines_size - posx;
+            printf("%d", tx);
             if (tx > 0 && mouse_pos.y < GetScreenHeight() - font_size - pad*2) {
                 int ty = (mouse_pos.y + pos*(font_size+inner_pad) - pad) / (font_size+inner_pad);
                 if (ty < (int) da_length(buf.lines)) {
                     Line line = buf.lines[ty];
-                    // buf.cursor = line.start;
                     int str[line.end-line.start];
                     memcpy(str, buf.content + line.start, sizeof(int)*(line.end-line.start));
                     char* ustr = LoadUTF8(str, line.end-line.start);
@@ -1180,7 +1180,7 @@ int main(int argc, char** argv) {
             }
         } else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             buf.selection_origin = buf.cursor;
-            int tx = mouse_pos.x - lines_size + posx;
+            int tx = mouse_pos.x - lines_size - posx;
             if (tx > 0 && mouse_pos.y < GetScreenHeight() - font_size - pad*2) {
                 int ty = (mouse_pos.y + pos*(font_size+inner_pad) - pad) / (font_size+inner_pad);
                 if (ty < (int) da_length(buf.lines)) {
